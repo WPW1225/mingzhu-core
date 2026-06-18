@@ -89,6 +89,47 @@
 - 201 passed, 0 failed（从 188 增至 201）
 - 新增 13 个测试（C3: 6 + C4: 6 + e2e 修复验证 1）
 
+### 2026-06-18 D1 前端组件拆分 + 顺手优化
+
+#### D1 前端组件拆分
+- web.py 从 645 行精简到 65 行（主入口）
+- 拆成 5 个组件文件：
+  - components/common.py: 共享工具（state + api_call + reset_session）
+  - components/auth.py: 登录/注册页面
+  - components/upload.py: 数据上传 + 分析触发
+  - components/report.py: 报告展示（含 C3 阶段状态展示）
+  - components/chat.py: 追问对话
+- 补 C3 前端降级：展示 stage_results（哪些阶段被跳过）和 warnings
+
+#### 顺手优化（消除弃用警告）
+- models: datetime.utcnow → datetime.now(timezone.utc)（4 个文件）
+- config: class Config → model_config = SettingsConfigDict(...)（Pydantic V2 规范）
+- tests: 修复 2 处 utcnow 调用
+- 警告从 143 降到 1（剩 1 个是第三方库 starlette/httpx）
+
+#### 测试结果
+- 201 passed, 1 warning（从 143 warnings 降到 1）
+
+### 后续规划（2026-06-18）
+
+#### 短期（本周可做）
+1. **B2+ Next Data Recommendation 增强** — 当前推荐偏通用，接入 LLM 生成更具体建议
+2. **evidence_collection 覆盖率提升** — 74% 是最低的，LLM 路径降级覆盖不够
+3. **cleanup_expired 定时触发** — 加 startup hook 或 cron job
+
+#### 中期（商业化前）
+4. **真实支付集成** — 支付宝/微信支付（需要企业资质）
+5. **D2 多语言支持** — 证据收集的中英文关键词统一
+6. **D3 性能优化** — 100万行+ 流式处理
+7. **API 文档完善** — FastAPI 自动文档加业务说明
+8. **Python SDK** — 方便 API 调用
+
+#### 长期（增长准备）
+9. **团队版功能** — 多席位、共享工作区、权限管理
+10. **模板市场** — 行业模板（电商/金融/教育）
+11. **监控告警** — 接入 Prometheus + Grafana
+12. **A/B 测试框架** — 不同 prompt 策略对比
+
 ---
 
 ## Edge Dice

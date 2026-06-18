@@ -13,7 +13,7 @@
 
 ### 中优先级
 
-- [ ] **D1 前端组件拆分** — web.py 633行拆成 components/ 目录（auth.py, upload.py, report.py, chat.py）
+- [x] **D1 前端组件拆分** — web.py 633行拆成 components/ 目录（auth.py, upload.py, report.py, chat.py） ✅ 2026-06-18
 - [ ] **B2+ Next Data Recommendation 增强** — 当前推荐偏通用，接入LLM生成更具体的建议
 - [ ] **evidence_collection 覆盖率提升** — 74%是最低的，LLM路径的降级代码路径覆盖不够
 - [ ] **cleanup_expired 定时触发** — 加 cron job 或 startup hook
