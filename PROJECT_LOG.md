@@ -89,6 +89,27 @@
 - 201 passed, 0 failed（从 188 增至 201）
 - 新增 13 个测试（C3: 6 + C4: 6 + e2e 修复验证 1）
 
+### 2026-06-18 evidence_collection 覆盖率提升
+
+#### 问题
+evidence_collection 覆盖率 74%，是所有模块最低的。LLM 路径的降级代码路径覆盖不够，生产环境有风险。
+
+#### 解决
+新增 19 个测试（tests/test_evidence_coverage.py），覆盖之前未测的路径：
+- _summarize_evidence 全部分支（supports/contradicts/neutral/empty/no_items/equal）
+- LLM 边界：不完整 markdown、非 dict JSON、dict 无 finding key
+- _prepare_data_sample：outlier 分支、date 分支、无特定数据
+- _keyword_distribution：有/无状态列、无 date
+- run 边界：signal_index 越界、无匹配 question
+- _time_comparison：other_mean=0 分支
+- _dimension_contribution：无效 date 异常捕获
+
+#### 环境问题
+pytest-cov 和 numpy 2.x 在这个环境有兼容问题（C tracer 冲突），无法直接跑覆盖率报告。通过代码审查 + 分支分析确认覆盖路径。本地环境无此问题。
+
+#### 测试结果
+- 220 passed（从 201 增至 220），1 warning
+
 ### 2026-06-18 D1 前端组件拆分 + 顺手优化
 
 #### D1 前端组件拆分
