@@ -57,11 +57,37 @@
 
 | 优先级 | 任务 | 说明 |
 |--------|------|------|
-| 中 | C3 错误处理增强 | Pipeline异常时部分结果返回+优雅降级 |
-| 中 | C4 结构化日志 | 审计日志+操作日志 |
-| 低 | D1 前端组件拆分 | web.py 633行拆成components/ |
-| 低 | D2 多语言支持 | 证据收集的降级模式优化 |
+| 中 | D1 前端组件拆分 | web.py 633行拆成components/ |
+| 中 | B2+ Next Data Recommendation 增强 | 接入LLM生成更具体的建议 |
+| 中 | evidence_collection 覆盖率提升 | 74%是最低的，LLM路径降级覆盖不够 |
+| 中 | cleanup_expired 定时触发 | 加 cron job 或 startup hook |
+| 低 | D2 多语言支持 | 证据收集降级模式优化 |
 | 低 | D3 性能优化 | 大数据集流式处理 |
+
+### 2026-06-18 C3+C4 完成
+
+#### C3 错误处理增强
+- PipelineStage 新增 is_critical 标记 + safe_run 方法
+- 区分致命错误（FatalStageError，中断）和非致命错误（跳过阶段继续）
+- validation 标记为核心阶段，其他阶段失败不中断整个 pipeline
+- task_service 失败时保存部分结果（已完成阶段的数据不丢）
+- PipelineContext 新增 stage_results 记录每阶段状态（success/skipped/fatal）
+- 6 个测试覆盖所有场景
+
+#### C4 结构化日志
+- app/core/logging.py: JsonFormatter + log_audit + log_operation
+- JSON 格式输出，方便接入 ELK/Loki 等日志系统
+- 审计日志覆盖：register/login/upload/analyze/delete/upgrade
+- 操作日志覆盖：pipeline_run/stage_execute（含耗时）
+- 6 个测试覆盖
+
+#### 测试隔离修复
+- conftest.py + test_api_e2e.py: 每个测试清空 rate_limit_store
+- 修复 chat e2e 因限流累积导致的 429 失败
+
+#### 测试结果
+- 201 passed, 0 failed（从 188 增至 201）
+- 新增 13 个测试（C3: 6 + C4: 6 + e2e 修复验证 1）
 
 ---
 
