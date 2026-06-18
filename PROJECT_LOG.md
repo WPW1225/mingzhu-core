@@ -255,3 +255,51 @@ LLM 生成的假设具体、可验证、基于实际数据：
 ## 结论
 
 P0-2 通过。LLM 集成工作正常，假设质量和追问质量都达到生产水平。发现的3个问题不阻塞上线，列入后续优化。
+
+### 2026-06-19 P0-2 修复 + P0-3 Docker 部署 + P0-4 安全加固
+
+#### P0-2 冒烟测试 3 个问题修复
+
+**问题1：likelihood 方括号截断（igh]→[high]）**
+- report_generation 加 `_fix_bracket_formatting` 后处理
+- 正则修复 `igh]`/`edium]`/`ow]` → `[high]`/`[medium]`/`[low]`
+- 验证：终端显示 `[h` 会被吃掉（ANSI 转义），但实际存储正确
+
+**问题2：趋势信号未触发（低密度数据）**
+- 新增 `MIN_SAMPLES_FOR_TREND=1`（趋势检测专用阈值）
+- 趋势检测不再要求每天 10 条，日级汇总数据（每天1条）也能检测
+- 分布变化检测仍保持 `MIN_SAMPLES_PER_GROUP=10`（占比计算需要样本量）
+
+**问题3：证据模式重复**
+- 统计证据按 signal 缓存（`stat_evidence_cache`），同一 signal 只算一次
+- 多个假设共享统计证据，LLM 证据按假设区分
+- 用户看到的是"统计事实（共享）+ LLM 对每个假设的判断（区分）"
+
+#### P0-3 Docker 部署
+
+这个环境没有 Docker，但完成了配置验证和加固：
+- Dockerfile：移除 JWT_SECRET 默认值，启动时检查必须配置
+- docker-compose：`AIA_JWT_SECRET` 用 `${VAR:?}` 语法强制要求
+- healthcheck：`requests` → `urllib`（避免额外依赖）
+
+**本地部署命令**（给老板用）：
+```bash
+# 1. 配置环境变量
+cp .env.example .env
+# 编辑 .env，填入 AIA_JWT_SECRET 和 AIA_LLM_API_KEY
+
+# 2. 启动
+docker compose up -d --build
+
+# 3. 验证
+curl http://localhost:8000/health
+# 前端：http://localhost:8501
+```
+
+#### P0-4 安全加固
+- JWT secret 不再有默认值，必须通过环境变量配置
+- Docker 启动时检查，未配置直接报错退出
+
+#### 测试结果
+- 227 passed（从 220 增至 227），1 warning
+- 新增 7 个 P0-2 修复验证测试
