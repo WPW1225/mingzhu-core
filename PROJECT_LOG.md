@@ -328,3 +328,49 @@ curl http://localhost:8000/health
 #### 测试结果
 - 238 passed（从 227 增至 238），1 warning
 - 新增 11 个测试（cleanup 4 + B2+ 7）
+
+### 2026-06-19 D2+D3+API文档+SDK 一起完成
+
+#### D2 多语言支持
+- 证据收集降级关键词统一中英文配置
+- `PROMO_KEYWORDS` / `POSITIVE_STATUS_KEYWORDS` / `NEGATIVE_STATUS_KEYWORDS`
+- `_match_keywords` 函数：中文用 contains，英文用 lower contains
+- 修复中文关键词用 `lower()` 无效的问题
+
+#### D3 性能优化（100万行）
+- 实测 100万行：总耗时 7.16s（可接受，不需要流式处理）
+- validation: 大数据量(>10万行)用采样计算重复行
+- validation 从 1.07s → 0.17s（6.3倍提升）
+- 阶段级耗时：validation 0.17s / signal_detection 2.36s / evidence_collection 3.73s
+
+#### API 文档完善
+- 所有路由加 tags（认证/数据/分析/计费）
+- 所有路由加 summary 和 docstring
+- 新增 UserResponse model
+- FastAPI /docs 文档更专业
+
+#### Python SDK
+- `sdk/ai_analyst/` 完整客户端封装
+- 认证/数据/分析/计费全 API 覆盖
+- `analyze_file` 一步到位方法（上传+分析+报告）
+- 11 个测试覆盖（mock 验证）
+- README + setup.py
+
+#### 测试结果
+- 249 passed（从 238 增至 249），1 warning
+- 新增 11 个 SDK 测试
+
+### AI Investigative Analyst 待做项状态（完整盘点）
+
+**全部完成** ✅：
+- 工程层：C3 错误处理 / C4 结构化日志 / D1 前端拆分 / cleanup 定时触发
+- 测试层：A1 测试套件 / evidence_collection 覆盖率提升
+- LLM 层：A2 LLM增强 / B2+ Next Data Recommendation LLM增强
+- 前端层：B1-B3 前端+追问 / P1 Landing Page + Demo
+- 部署层：C1 Docker / C2 数据安全 / P0-3 Docker配置加固 / P0-4 安全加固
+- 质量层：P0-2 冒烟测试3个问题修复
+- 商业层：产品文案优化
+- 扩展层：**D2 多语言 / D3 性能优化 / API文档 / SDK**
+
+**仅剩**：
+- 真实支付集成（需要企业资质，非技术阻塞）
