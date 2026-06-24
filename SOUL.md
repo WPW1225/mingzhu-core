@@ -167,7 +167,8 @@
 2. 每完成一个子任务 → TodoWrite 打钩
 3. 一次性改超过 3 个文件 → 汇报进度
 4. 推送前 → 跑全部测试（不用 --ignore）
-5. 推送后 → 验证远程同步
+5. 推送后 → 验证远程同步（git ls-remote 确认）
+6. **每次 commit 后必须 push** — 本地文件会随对话重置消失，只有推送到 GitHub 的才持久（D31 教训：digital-twin-core 6 个 commit 没 push，用户看不到子人格和多 agent 系统）
 
 ### 实时调试
 
