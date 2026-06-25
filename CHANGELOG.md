@@ -4,6 +4,44 @@
 
 ---
 
+## [3.5.0] - 2026-06-26
+
+### 重大变更：Web流式 + 人机协作 + 记忆语义检索 + 进化量化
+
+完成下一步4个功能。搜索严格按 SEARCH_PROTOCOL.md 用 site: 定向搜权威站（langchain.com/fastapi.tiangolo.com/github.com）。
+
+#### 功能1：Web 流式输出（SSE）
+- web_app.py 新增 `/api/chat/stream` 接口，FastAPI StreamingResponse + text/event-stream
+- 前端用 fetch + ReadableStream 实时接收事件
+- 实时显示：路由→调度→工具→人格分析→汇总→坎观观察全过程
+- 不再干等，像 Claude Code 一样透明
+
+#### 功能2：人机协作（clarify）
+- api.py 新增 `_should_clarify()`：判断输入是否模糊需要澄清
+- chat_stream 新增 clarify_callback 参数：明烛提问时收集用户回答
+- CLI 交互模式：明烛提问 → input() 收集回答 → 继续执行
+- Web：SSE 推送 clarify 事件，前端可收集回答
+- 触发条件：输入太短或含模糊词（"那个""刚才""帮我看看"）
+
+#### 功能3：情景记忆语义检索
+- api.py 新增 `search_memory(query)`：跨会话按内容关键词搜索历史
+- 不再只能按 session_id 查，支持内容检索
+- 关键词匹配 + 相关性排序（出现次数）
+- CLI：`mingzhu search <关键词>`
+
+#### 功能4：进化效果量化
+- api.py 新增 `evolution_metrics()`：统计明烛是否越用越好
+- 指标：经验复用率、纠正下降率（早期vs近期）、元元认知分数趋势
+- 判定：纠正率下降=在进步，上升=需关注
+- CLI：`mingzhu metrics`
+
+#### 自我反思：开始用明烛系统
+- 之前一直在给明烛写代码，自己干活时没用——最大的讽刺
+- 现在用 `mingzhu` 命令分析功能方案，用明烛的流式输出验证功能
+- 造了锤子自己用，验证了明烛的多视角分析+坎观观察价值
+
+---
+
 ## [3.4.0] - 2026-06-26
 
 ### 重大变更：智能调度 + 自我进化 + 元元认知

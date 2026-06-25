@@ -177,29 +177,142 @@ def evolution_summary() -> Dict:
     return get_engine().summary()
 
 
+def search_memory(query: str, limit: int = 5) -> List[Dict]:
+    """情景记忆语义检索：按内容关键词搜索所有会话历史（v3.5 新增）
+
+    不再只能按 session_id 查，可以按内容关键词跨会话搜索。
+    使用简单的关键词匹配 + 相关性排序（未来可升级为向量检索）。
+    """
+    from .memory import get_memory
+    memory = get_memory()
+    results = []
+    for session_file in memory.memory_dir.glob("*.json"):
+        try:
+            history = json.loads(session_file.read_text(encoding="utf-8"))
+            for entry in history:
+                # 简单关键词匹配
+                text = (entry.get("user_input", "") + " " + entry.get("output", "")).lower()
+                query_lower = query.lower()
+                if query_lower in text:
+                    # 计算相关性：关键词出现次数
+                    score = text.count(query_lower)
+                    results.append({
+                        "session_id": session_file.stem,
+                        "timestamp": entry.get("timestamp", ""),
+                        "user_input": entry.get("user_input", "")[:100],
+                        "output": entry.get("output", "")[:200],
+                        "score": score,
+                    })
+        except Exception:
+            continue
+    # 按相关性排序
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return results[:limit]
+
+
+def evolution_metrics() -> Dict:
+    """进化效果量化：统计明烛是否越用越好（v3.5 新增）
+
+    指标：
+    - 经验复用率：可复用经验占比
+    - 纠正下降率：近期纠正数 vs 早期纠正数（是否在减少）
+    - 反思质量趋势：元元认知分数是否在提升
+    - 教训积累曲线
+    """
+    from .evolution import get_engine
+    from pathlib import Path
+    engine = get_engine()
+    exps = engine._load(engine.exp_file)
+    prefs = engine._load(engine.pref_file)
+
+    if not exps:
+        return {"status": "no_data", "message": "尚无经验数据，多对话几次后再看"}
+
+    total = len(exps)
+    reusable = [e for e in exps if e.get("reusable")]
+    corrected = [e for e in exps if e.get("outcome") == "corrected"]
+
+    # 早期 vs 近期纠正率
+    mid = total // 2
+    early_corrected = len([e for e in exps[:mid] if e.get("outcome") == "corrected"])
+    recent_corrected = len([e for e in exps[mid:] if e.get("outcome") == "corrected"])
+    early_rate = early_corrected / max(mid, 1)
+    recent_rate = recent_corrected / max(total - mid, 1)
+    correction_trend = "下降(变好)" if recent_rate < early_rate else "上升(需关注)"
+
+    # 元元认知分数趋势（从认知循环记录中提取，简化：从经验里找）
+    meta_scores = [e.get("meta_score", 0) for e in exps if e.get("meta_score")]
+    avg_meta = sum(meta_scores) / len(meta_scores) if meta_scores else 0
+
+    return {
+        "total_experiences": total,
+        "reusable_lessons": len(reusable),
+        "reuse_rate": round(len(reusable) / total, 2),
+        "total_corrections": len(corrected),
+        "correction_rate": round(len(corrected) / total, 2),
+        "early_correction_rate": round(early_rate, 2),
+        "recent_correction_rate": round(recent_rate, 2),
+        "correction_trend": correction_trend,
+        "avg_meta_cognition_score": round(avg_meta, 1),
+        "preferences_learned": len(prefs),
+        "verdict": "明烛在进步" if recent_rate < early_rate else "需更多数据或关注",
+    }
+
+
 def reset_session(session_id: str = "default"):
     """重置内存中的图状态（不影响已持久化的文件记忆）"""
     global _graph
     _graph = None
 
 
-def chat_stream(user_input: str, session_id: str = "default"):
+def _should_clarify(user_input: str, router) -> str:
+    """v3.5: 判断是否需要向用户澄清（人机协作）
+
+    触发条件：输入模糊、缺乏关键信息、有多种理解可能。
+    返回澄清问题字符串，不需要澄清时返回空字符串。
+    为控制成本，只在输入很短或含模糊词时触发LLM判断。
+    """
+    # 快速规则判断：太短或含模糊词
+    ambiguous_words = ["那个", "这个", "它", "之前说的", "刚才", "帮我看看", "分析一下"]
+    is_ambiguous = (
+        len(user_input) < 15 or
+        any(w in user_input for w in ambiguous_words)
+    )
+    if not is_ambiguous:
+        return ""
+
+    try:
+        from .llm_backends import Scene
+        resp = router.generate(
+            prompt=f"""判断以下用户输入是否需要澄清才能回答。
+如果需要，返回一个具体的澄清问题（只返回问题，不要其他内容）。
+如果不需要澄清，只返回"NO"。
+
+用户输入：{user_input}""",
+            scene=Scene.ROUTING, max_tokens=80,
+        )
+        if resp.ok and resp.content.strip() and resp.content.strip() != "NO":
+            return resp.content.strip()[:150]
+    except Exception:
+        pass
+    return ""
+
+
+def chat_stream(user_input: str, session_id: str = "default",
+                clarify_callback=None):
     """流式对话接口（生成器，逐步 yield 进度）
 
-    yield 的内容：
-    - {"type":"routing", "method":"keyword/llm", "personas":["乾断",...]}
-    - {"type":"persona_start", "name":"乾断", "icon":"🔢"}
-    - {"type":"persona_done", "name":"乾断", "content":"...", "confidence":"中"}
-    - {"type":"tool", "persona":"巽风", "tool":"web_search", "result":"..."}
-    - {"type":"synthesizing"}
-    - {"type":"output", "content":"最终回复"}
-    - {"type":"observer", "content":"坎观观察报告"}
-    - {"type":"done", "latency_ms":1234, "models":["glm-4-plus"]}
+    v3.5 新增 clarify_callback：人机协作回调。
+    当明烛需要澄清时，yield clarify 事件，调用方可通过 clarify_callback
+    获取用户输入后继续。CLI 传 input() 回调，Web 传异步收集回调。
 
-    用法：
-        for event in chat_stream("帮我分析"):
-            if event["type"] == "output":
-                print(event["content"])
+    Args:
+        clarify_callback: 可选，签名 (question: str) -> str，返回用户回答。
+                         为 None 时，clarify 事件直接 yield，由调用方处理。
+
+    yield 的事件类型：
+    - routing / schedule / tool / persona_start / persona_done / synthesizing / output / observer / done
+    - clarify（v3.5新增）: {"type":"clarify","question":"...","persona":"乾断"}
     """
     import time as _time
     from .langgraph_engine import MingZhuGraph, PERSONAS
@@ -215,12 +328,24 @@ def chat_stream(user_input: str, session_id: str = "default"):
     yield {"type": "routing", "method": route_result.get("routing_method", ""),
            "personas": [PERSONAS[p]["name"] for p in persona_ids]}
 
+    # v3.5: 人机协作——判断是否需要澄清
+    needs_clarify = _should_clarify(user_input, graph.router)
+    if needs_clarify:
+        question = needs_clarify
+        yield {"type": "clarify", "question": question, "persona": "明烛"}
+        if clarify_callback:
+            try:
+                answer = clarify_callback(question)
+                if answer:
+                    user_input = f"{user_input}\n[用户补充：{answer}]"
+            except Exception:
+                pass
+
     # 阶段2：工具调用
     tool_ctx = graph._maybe_call_tools(persona_ids, user_input)
     if tool_ctx:
         for line in tool_ctx.split("\n\n"):
             if line.startswith("["):
-                # 解析工具名
                 end = line.find("]")
                 if end > 0:
                     yield {"type": "tool", "info": line[:end+1], "detail": line[end+1:][:200]}
@@ -230,19 +355,16 @@ def chat_stream(user_input: str, session_id: str = "default"):
     persona_results = []
     schedule = None
 
-    # 用图引擎的执行节点（含智能调度）
     exec_state = {"user_input": user_input, "context": context, "persona_ids": persona_ids}
     exec_result = graph._node_execute_personas(exec_state)
     persona_results = exec_result.get("persona_results", [])
     schedule = exec_result.get("schedule", {})
 
-    # 流式输出调度策略
     if schedule:
         yield {"type": "schedule", "strategy": schedule.get("strategy", ""),
                "groups": schedule.get("groups", []),
                "reason": schedule.get("reason", "")}
 
-    # 流式输出各人格结果
     for r in persona_results:
         yield {"type": "persona_done", "name": r["name"],
                "content": r.get("content", ""), "confidence": r.get("confidence", "")}

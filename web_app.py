@@ -22,16 +22,17 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 
 from agent_system.api import (
     chat_with_details, get_history,
-    list_sessions, clear_session, cost_summary,
+    list_sessions, clear_session, cost_summary, evolution_summary,
+    chat_stream,
 )
 
-app = FastAPI(title="明烛 Web", version="3.2")
+app = FastAPI(title="明烛 Web", version="3.5")
 
 
 class ChatRequest(BaseModel):
@@ -46,12 +47,38 @@ async def index():
 
 @app.post("/api/chat")
 async def api_chat(req: ChatRequest):
-    """对话接口"""
+    """对话接口（非流式，兼容旧版）"""
     try:
         result = chat_with_details(req.message, session_id=req.session_id)
         return JSONResponse(result)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.post("/api/chat/stream")
+async def api_chat_stream(req: ChatRequest):
+    """对话接口（SSE 流式，v3.5 新增）
+
+    返回 text/event-stream，每个事件格式：
+    data: {"type":"routing","personas":["乾断"]}\\n\\n
+    data: {"type":"schedule","strategy":"sequential"}\\n\\n
+    data: {"type":"persona_done","name":"乾断","content":"..."}\\n\\n
+    data: {"type":"output","content":"最终回复"}\\n\\n
+    data: {"type":"done"}\\n\\n
+    """
+    def event_generator():
+        try:
+            for event in chat_stream(req.message, session_id=req.session_id):
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            yield "data: {\"type\":\"done\"}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type':'error','message':str(e)}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/api/sessions")
@@ -205,32 +232,61 @@ async function send() {
   sending = true;
   document.getElementById('send-btn').disabled = true;
   
-  const typingEl = addMessage('mingzhu', '<span class="typing">明烛思考中...</span>', true);
+  // v3.5: SSE 流式输出
+  const typingEl = addMessage('mingzhu', '<div class="stream-progress">明烛思考中...</div>', true);
+  const bubbleEl = typingEl.querySelector('.msg-bubble');
+  let progressHtml = '';
+  let finalOutput = '';
+  let metaHtml = '';
   
   try {
-    const resp = await fetch('/api/chat', {
+    const resp = await fetch('/api/chat/stream', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({message:msg, session_id:sessionId})
     });
-    const data = await resp.json();
-    typingEl.querySelector('.msg-bubble').innerHTML = data.error ? '[错误] '+data.error : data.output;
     
-    if (!data.error) {
-      let meta = '';
-      if (data.personas && data.personas.length) {
-        meta = '<div class="msg-personas">' + data.personas.map(p=>
-          `<span class="persona-tag">${p.icon||''} ${p.name}·${p.confidence||''}</span>`).join('') + '</div>';
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream:true});
+      const lines = buffer.split('\\n');
+      buffer = lines.pop();
+      
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
+          if (event.type === 'routing') {
+            progressHtml += `<div class="stream-step">📍 路由: ${event.personas.join(',')} (${event.method})</div>`;
+          } else if (event.type === 'schedule') {
+            progressHtml += `<div class="stream-step">⚙️ 调度: ${event.strategy}</div>`;
+          } else if (event.type === 'tool') {
+            progressHtml += `<div class="stream-step">🔧 ${event.info}</div>`;
+          } else if (event.type === 'persona_done') {
+            const conf = event.confidence || '';
+            progressHtml += `<div class="stream-step">✦ ${event.name} [${conf}] ${event.content.substring(0,60)}...</div>`;
+          } else if (event.type === 'synthesizing') {
+            progressHtml += `<div class="stream-step">📝 离明汇总中...</div>`;
+          } else if (event.type === 'output') {
+            finalOutput = event.content;
+          } else if (event.type === 'observer') {
+            if (event.content) metaHtml += `<div class="msg-observer">👁 坎观：${event.content.substring(0,300)}</div>`;
+          } else if (event.type === 'done') {
+            if (event.latency_ms) metaHtml = `<div class="msg-meta">${event.latency_ms}ms${event.models?' · '+event.models.join(','):''}</div>` + metaHtml;
+          }
+          // 更新显示
+          bubbleEl.innerHTML = progressHtml + (finalOutput ? '<hr style="border-color:#3f3f46"><div class="stream-output">'+finalOutput+'</div>' : '') + metaHtml;
+          document.getElementById('chat-area').scrollTop = 999999;
+        } catch(e) {}
       }
-      meta += `<div class="msg-meta">${data.latency_ms||0}ms`;
-      if (data.models && data.models.length) meta += ` · ${data.models.join(',')}`;
-      if (data.conflicts && data.conflicts.length) meta += ` · ⚠️${data.conflicts.length}冲突`;
-      if (data.vetoed) meta += ` · 🛑否决`;
-      meta += '</div>';
-      if (data.observer) meta += `<div class="msg-observer">👁 坎观：${data.observer.substring(0,300)}</div>`;
-      typingEl.insertAdjacentHTML('beforeend', meta);
     }
+    if (!finalOutput) bubbleEl.innerHTML = '[无输出]';
   } catch(e) {
-    typingEl.querySelector('.msg-bubble').innerHTML = '[网络错误] '+e.message;
+    bubbleEl.innerHTML = '[网络错误] '+e.message;
   }
   sending = false;
   document.getElementById('send-btn').disabled = false;

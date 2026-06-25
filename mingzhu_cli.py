@@ -26,6 +26,7 @@ if _HERE not in sys.path:
 from agent_system.api import (
     chat, chat_with_details, get_history,
     list_sessions, clear_session, cost_summary, chat_stream,
+    search_memory, evolution_metrics,
 )
 
 
@@ -45,7 +46,14 @@ def stream_response(question: str, session_id: str):
     """流式输出响应（像 Claude Code 一样实时显示进度）"""
     print(f"\033[38;5;244m思考中...\033[0m", end="", flush=True)
 
-    for event in chat_stream(question, session_id=session_id):
+    # v3.5: 人机协作回调——明烛提问时，用 input() 收集用户回答
+    def clarify_cb(q):
+        try:
+            return input(f"\033[38;5;214m  你的回答›\033[0m ").strip()
+        except (EOFError, KeyboardInterrupt):
+            return ""
+
+    for event in chat_stream(question, session_id=session_id, clarify_callback=clarify_cb):
         etype = event["type"]
 
         if etype == "routing":
@@ -64,6 +72,11 @@ def stream_response(question: str, session_id: str):
 
         elif etype == "tool":
             print(f"\033[38;5;39m  {event['info']}\033[0m")
+
+        elif etype == "clarify":
+            # v3.5: 人机协作——明烛提问，用户回答
+            print(f"\n\033[38;5;214m  ❓ 明烛想确认：{event['question']}\033[0m")
+            # clarify_callback 会在 chat_stream 内部处理，这里只显示
 
         elif etype == "persona_start":
             print(f"\033[38;5;214m  {event.get('icon','')} {event['name']} 分析中...\033[0m",
@@ -215,6 +228,22 @@ def main():
         import json
         print(json.dumps(cost_summary(), ensure_ascii=False, indent=2))
         return
+    if args[0] in ("search", "find") and len(args) > 1:
+        query = " ".join(args[1:])
+        results = search_memory(query)
+        if not results:
+            print(f"  \033[90m未找到含'{query}'的记忆\033[0m")
+        else:
+            for r in results:
+                print(f"  \033[90m[{r['session_id']}] {r['timestamp']}\033[0m")
+                print(f"    你：{r['user_input']}")
+                print(f"    明烛：{r['output'][:150]}")
+                print()
+        return
+    if args[0] in ("metrics", "evolution"):
+        import json
+        print(json.dumps(evolution_metrics(), ensure_ascii=False, indent=2))
+        return
     if args[0] in ("history", "hist") and len(args) > 1:
         for i, h in enumerate(get_history(args[1]), 1):
             print(f"\n--- 第{i}轮 [{h['timestamp']}] ---")
@@ -233,6 +262,8 @@ def main():
         print("  mingzhu web                启动网页")
         print("  mingzhu sessions           查看会话")
         print("  mingzhu cost               查看成本")
+        print("  mingzhu search <关键词>    跨会话搜索记忆")
+        print("  mingzhu metrics            查看进化效果量化")
         print("  mingzhu history <id>       查看会话历史")
         print()
         print("环境变量：")
