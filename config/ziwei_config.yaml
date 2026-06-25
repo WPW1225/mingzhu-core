@@ -1,0 +1,183 @@
+# ============================================================
+# 明烛紫微斗数命盘配置
+# 出生：2002年12月25日 15:15 上海徐汇
+# 农历：壬午年冬月廿二 申时
+# ============================================================
+
+chart_info:
+  lunar_date: "壬午年冬月廿二"
+  lunar_month: 11
+  lunar_day: 22
+  hour_branch: "申"
+  gender: "男"
+  year_stem: "壬"
+  year_branch: "午"
+
+# 五行局
+wuxing_ju: "木三局"
+
+# 命宫与身宫
+ming_gong:
+  position: "辰"
+  stars: ["巨门"]
+  is_ming: true
+  interpretation: "巨门星坐命辰宫。巨门为暗星，主口舌、分析、研究。坐命者善于深度思考、批判性分析，有洞察本质的能力，但需注意言辞锋芒。"
+
+shen_gong:
+  position: "申"
+  palace_name: "官禄宫"
+  stars: []
+  is_shen: true
+  interpretation: "身宫在官禄宫，主一生事业为重，行动力强，以事业成就为人生核心。"
+
+# 十四主星分布
+main_stars:
+  ziwei:
+    name: "紫微"
+    position: "卯"
+    palace: "兄弟宫"
+    combination: "紫微贪狼"
+    note: "紫微化权，主权威领导。与贪狼同宫，主桃花、才艺、社交魅力。"
+  tianji:
+    name: "天机"
+    position: "寅"
+    palace: "夫妻宫"
+    note: "主智慧、谋略、变动。"
+  taiyang:
+    name: "太阳"
+    position: "子"
+    palace: "财帛宫"
+    note: "太阳居子为陷地，主财来财去，但逢吉可主名利双收。"
+  wuqu:
+    name: "武曲"
+    position: "亥"
+    palace: "疾厄宫"
+    combination: "武曲破军"
+    note: "武曲化忌，主财务波动、健康需注意。武破同宫主刚毅果断但辛苦。"
+  tiantong:
+    name: "天同"
+    position: "戌"
+    palace: "迁移宫"
+    note: "主福分、外出顺利。"
+  lianzhen:
+    name: "廉贞"
+    position: "未"
+    palace: "田宅宫"
+    combination: "廉贞七杀"
+    note: "主肃杀、管理、不动产。"
+  tianfu:
+    name: "天府"
+    position: "丑"
+    palace: "子女宫"
+    note: "主库藏、稳重、包容。"
+  taiyin:
+    name: "太阴"
+    position: "寅"
+    palace: "夫妻宫"
+    note: "主柔和、细腻、田宅。与天机同宫主感情细腻。"
+  tanlang:
+    name: "贪狼"
+    position: "卯"
+    palace: "兄弟宫"
+    combination: "紫微贪狼"
+    note: "主欲望、才艺、桃花。与紫微同宫主'桃花犯主'，才艺出众。"
+  jumen:
+    name: "巨门"
+    position: "辰"
+    palace: "命宫"
+    note: "巨门坐命，主分析、研究、口才。善于发现问题和本质，但需注意口舌是非。"
+  tianxiang:
+    name: "天相"
+    position: "巳"
+    palace: "父母宫"
+    note: "主辅助、稳重、衣食。"
+  tianliang:
+    name: "天梁"
+    position: "午"
+    palace: "福德宫"
+    note: "天梁化禄，主福寿、智慧、庇荫。福德宫化禄，精神生活丰富。"
+  qisha:
+    name: "七杀"
+    position: "未"
+    palace: "田宅宫"
+    combination: "廉贞七杀"
+    note: "主肃杀、开创、变动。"
+  pojun:
+    name: "破军"
+    position: "亥"
+    palace: "疾厄宫"
+    combination: "武曲破军"
+    note: "主破旧立新、变动、开创。"
+
+# 十二宫位
+twelve_palaces:
+  - position: "辰"
+    name: "命宫"
+    stars: ["巨门"]
+    is_ming: true
+  - position: "卯"
+    name: "兄弟宫"
+    stars: ["紫微", "贪狼"]
+  - position: "寅"
+    name: "夫妻宫"
+    stars: ["天机", "太阴"]
+  - position: "丑"
+    name: "子女宫"
+    stars: ["天府"]
+  - position: "子"
+    name: "财帛宫"
+    stars: ["太阳"]
+  - position: "亥"
+    name: "疾厄宫"
+    stars: ["武曲", "破军"]
+  - position: "戌"
+    name: "迁移宫"
+    stars: ["天同"]
+  - position: "酉"
+    name: "交友宫"
+    stars: []
+  - position: "申"
+    name: "官禄宫"
+    stars: []
+    is_shen: true
+  - position: "未"
+    name: "田宅宫"
+    stars: ["廉贞", "七杀"]
+  - position: "午"
+    name: "福德宫"
+    stars: ["天梁"]
+  - position: "巳"
+    name: "父母宫"
+    stars: ["天相"]
+
+# 生年四化（壬干）
+sihua:
+  hua_lu:
+    star: "天梁"
+    palace: "福德宫"
+    meaning: "化禄主福分、顺遂。天梁化禄在福德宫，主精神生活丰富，有智慧福报，逢凶化吉。"
+  hua_quan:
+    star: "紫微"
+    palace: "兄弟宫"
+    meaning: "化权主权力、掌控。紫微化权，主领导权威，在人际交往中具有影响力。"
+  hua_ke:
+    star: "左辅"
+    palace: "—"
+    meaning: "化科主名声、贵人。左辅化科，主有贵人相助，名声显扬。"
+  hua_ji:
+    star: "武曲"
+    palace: "疾厄宫"
+    meaning: "化忌主阻碍、波折。武曲化忌在疾厄宫，主财务波动和健康需注意，需谨慎理财。"
+
+# 命盘核心解读
+interpretation:
+  core_strength: "巨门坐命，分析洞察力极强，善于发现问题和本质。天梁化禄在福德宫，精神世界丰富，有智慧福报。紫微化权，具备领导潜质。"
+  core_challenge: "武曲化忌在疾厄宫，财务和健康方面需谨慎。太阳陷地居财帛，财运需靠自身努力经营。官禄宫空宫，事业方向需自行开拓。"
+  personality_traits:
+    - "深度分析：巨门坐命，天生具有批判性思维和深度分析能力"
+    - "智慧福报：天梁化禄在福德，精神追求高，有逢凶化吉之运"
+    - "领导潜质：紫微化权，具备领导权威和影响力"
+    - "创新变动：武破在疾厄，破旧立新，不安于现状"
+    - "社交魅力：紫微贪狼在兄弟，人际交往有魅力和才艺"
+  career_direction: "身宫在官禄宫，事业为核心。巨门坐命适合研究、分析、咨询、教育类工作。当前乙卯大运（印星运），适合深度学习和知识积累。"
+  life_theme: "以智慧（巨门）照亮迷雾，以福报（天梁化禄）逢凶化吉，以权威（紫微化权）影响他人，以创新（武破）破旧立新。明烛之名，正是巨门坐命、丁火日主的完美写照——以分析和智慧之光，照亮未知。"

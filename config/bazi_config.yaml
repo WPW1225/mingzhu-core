@@ -1,0 +1,196 @@
+# ============================================================
+# 明烛八字命理配置（子平法）
+# 出生：2002年12月25日 15:15 上海徐汇（UTC+8, 31°12'N 121°26'E）
+# 农历：壬午年冬月廿二 申时
+# ============================================================
+
+birth_info:
+  solar_date: "2002-12-25"
+  solar_time: "15:15"
+  timezone: "UTC+8"
+  location: "上海徐汇"
+  latitude: 31.2
+  longitude: 121.4333
+  lunar_date: "壬午年冬月廿二"
+  lunar_month: 11
+  lunar_day: 22
+  is_leap_month: false
+  animal: "马"
+
+# 四柱八字
+four_pillars:
+  year:
+    stem: "壬"
+    branch: "午"
+    ganzhi: "壬午"
+    element: "水火"
+    nayin: "杨柳木"
+    hidden_stems: ["丁", "己"]
+  month:
+    stem: "壬"
+    branch: "子"
+    ganzhi: "壬子"
+    element: "水水"
+    nayin: "桑柘木"
+    hidden_stems: ["癸"]
+  day:
+    stem: "丁"
+    branch: "卯"
+    ganzhi: "丁卯"
+    element: "火木"
+    nayin: "炉中火"
+    hidden_stems: ["乙"]
+  hour:
+    stem: "戊"
+    branch: "申"
+    ganzhi: "戊申"
+    element: "土金"
+    nayin: "大驿土"
+    hidden_stems: ["庚", "壬", "戊"]
+
+# 日主
+day_master:
+  stem: "丁"
+  element: "火"
+  yin_yang: "阴"
+  alias: "明烛"
+  nature: "丁火为烛火、灯烛之火，性柔而内敛，光照一方而不烈，象征文明、智慧、指引。"
+  season_strength: "冬火（子月），火气休囚，需木生火助。"
+
+# 十神
+ten_gods:
+  year:
+    stem_god: "正官"
+    branch_gods: ["比肩", "食神"]
+  month:
+    stem_god: "正官"
+    branch_gods: ["七杀"]
+  day:
+    stem_god: "日主"
+    branch_gods: ["偏印"]
+  hour:
+    stem_god: "伤官"
+    branch_gods: ["正财", "正官", "伤官"]
+
+# 格局与用神
+pattern:
+  name: "七杀格"
+  description: "月令子水藏癸为七杀，七杀当令而旺，丁火日主受克严重。"
+  day_master_strength: "身弱"
+  element_distribution:
+    wood: 0.5
+    fire: 0.5
+    earth: 2.0
+    metal: 0.5
+    water: 3.0
+  yongshen:  # 用神
+    - element: "木"
+      role: "印星"
+      reason: "木生火助身，且木能化水（七杀）生火，一举两得。为第一用神。"
+      priority: 1
+    - element: "火"
+      role: "比劫"
+      reason: "火助丁火日主，增强自身力量以抗七杀。为第二用神。"
+      priority: 2
+  xishen:  # 喜神
+    - element: "土"
+      role: "伤官/食神"
+      reason: "土能克水（制杀），但土亦泄火，需适度。为喜忌参半。"
+      priority: 3
+  jishen:  # 忌神
+    - element: "水"
+      role: "七杀/正官"
+      reason: "水克火，七杀攻身，加重日主负担。为第一忌神。"
+      priority: 1
+    - element: "金"
+      role: "财星"
+      reason: "金生水（生杀），且金克木（损印），助纣为虐。为第二忌神。"
+      priority: 2
+
+# 神煞
+shensha:
+  - name: "驿马"
+    position: "申（时支）"
+    meaning: "主奔波、变动、出行，利于远行求谋。"
+  - name: "桃花"
+    position: "卯（日支）"
+    meaning: "主人缘佳、有魅力，利于社交与文艺。"
+
+# 大运
+dayun:
+  start_age: 4
+  direction: "顺排"
+  gender: "男"
+  year_stem_yin_yang: "阳"
+  periods:
+    - age: "4-13"
+      ganzhi: "癸丑"
+      element: "水土"
+      note: "七杀运，童年压力较大，但丑土制水有功。"
+    - age: "14-23"
+      ganzhi: "甲寅"
+      element: "木木"
+      note: "印星大运，学业、成长黄金期，木生火助身。"
+    - age: "24-33"
+      ganzhi: "乙卯"
+      element: "木木"
+      note: "偏印运，当前大运。智慧开启，适合学习、研究、创新。"
+    - age: "34-43"
+      ganzhi: "丙辰"
+      element: "火土"
+      note: "劫财运，火助身，辰土制水，事业上升期。"
+    - age: "44-53"
+      ganzhi: "丁巳"
+      element: "火火"
+      note: "比肩运，火旺助身，事业巅峰期。"
+    - age: "54-63"
+      ganzhi: "戊午"
+      element: "土火"
+      note: "伤官运，午火助身，戊土制水，稳健发展。"
+    - age: "64-73"
+      ganzhi: "己未"
+      element: "土土"
+      note: "食神运，土旺制水，晚年安稳。"
+    - age: "74-83"
+      ganzhi: "庚申"
+      element: "金金"
+      note: "财运，金生水助杀，需注意健康。"
+
+# 五行与八卦映射（用于人格系统）
+element_to_trigram:
+  wood:
+    trigrams: ["震", "巽"]
+    role: "用神（第一）"
+    personas: ["震造", "巽风"]
+    meaning: "木生火助身，化杀生印。震为雷主行动，巽为风主调研。"
+  fire:
+    trigrams: ["离"]
+    role: "用神（第二）"
+    personas: ["离明"]
+    meaning: "火助丁火日主，比劫帮身。离为火主表达。"
+  earth:
+    trigrams: ["艮", "坤"]
+    role: "喜神"
+    personas: ["艮守", "坤载"]
+    meaning: "土克水制杀，但泄火。艮为山主守护，坤为地主承载。"
+  water:
+    trigrams: ["坎"]
+    role: "忌神（第一）"
+    personas: ["坎观"]
+    meaning: "水为七杀攻身。坎为水主险陷，但亦主深度洞察。需以印化杀，转忌为用。"
+  metal:
+    trigrams: ["乾", "兑"]
+    role: "忌神（第二）"
+    personas: ["乾断", "兑泽"]
+    meaning: "金生水助杀。乾为金主决断，兑为泽主创造。需以火制金，转忌为用。"
+
+# 命理对人格系统的指导
+guidance:
+  core_identity: "丁火日主，阴火烛照，象征文明、智慧、指引。明烛之名，恰合丁火之象。"
+  core_challenge: "七杀格身弱，水旺火熄。核心挑战是在压力（七杀）下保持自身光芒（丁火），需以木（学习、印星）化杀生身。"
+  growth_path: "当前乙卯大运（24-33岁），偏印当令，是智慧开启、深度学习、创新突破的黄金期。"
+  balance_principle: "八卦五行需平衡：木火为根基（用神），土为支撑（喜神），水金为挑战（忌神），以印化杀、以火制金，方能圆融。"
+  persona_priority:
+    high: ["震造", "巽风", "离明"]  # 木火用神
+    medium: ["艮守", "坤载"]          # 土喜神
+    careful: ["坎观", "乾断", "兑泽"]  # 水金忌神，需谨慎使用

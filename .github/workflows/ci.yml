@@ -1,0 +1,52 @@
+name: 明烛测试套件
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.11, 3.12]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 设置 Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: 验证配置文件
+        run: |
+          python -c "
+          import yaml, glob
+          files = glob.glob('config/**/*.yaml', recursive=True)
+          for f in files:
+              with open(f) as fh:
+                  yaml.safe_load(fh)
+              print(f'OK: {f}')
+          print(f'共验证 {len(files)} 个配置文件')
+          "
+
+      - name: 运行测试套件
+        run: |
+          python tests/run_all_tests.py
+
+      - name: 上传测试结果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: |
+            tests/test_results_*.json
+            tests/test_summary.json

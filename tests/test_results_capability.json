@@ -1,0 +1,211 @@
+[
+  {
+    "case_id": "CB001",
+    "category": "basic_qa",
+    "description": "基础问答：解释概念",
+    "input": "什么是递归？",
+    "expected_personas": [
+      "li_ming"
+    ],
+    "routed_personas": [
+      "kan_guan",
+      "li_ming",
+      "qian_duan"
+    ],
+    "overlap": [
+      "li_ming"
+    ],
+    "has_observer": true,
+    "status": "PASS"
+  },
+  {
+    "case_id": "CB002",
+    "category": "reasoning",
+    "description": "推理：权衡分析",
+    "input": "分析一下这个方案的利弊：微服务架构vs单体架构",
+    "expected_personas": [
+      "xun_feng",
+      "qian_duan"
+    ],
+    "routed_personas": [
+      "qian_duan",
+      "kan_guan",
+      "li_ming",
+      "gen_shou",
+      "zhen_zao"
+    ],
+    "overlap": [
+      "qian_duan"
+    ],
+    "has_observer": true,
+    "status": "PASS"
+  },
+  {
+    "case_id": "CB003",
+    "category": "code_generation",
+    "description": "代码生成：算法实现",
+    "input": "写一个Python函数实现快速排序",
+    "expected_personas": [
+      "zhen_zao"
+    ],
+    "routed_personas": [
+      "kan_guan",
+      "zhen_zao",
+      "li_ming",
+      "gen_shou"
+    ],
+    "overlap": [
+      "zhen_zao"
+    ],
+    "has_observer": true,
+    "status": "PASS"
+  },
+  {
+    "case_id": "CB004",
+    "category": "research",
+    "description": "调研：技术对比",
+    "input": "调研一下React和Vue的优缺点",
+    "expected_personas": [
+      "xun_feng"
+    ],
+    "routed_personas": [
+      "xun_feng",
+      "li_ming",
+      "kan_guan"
+    ],
+    "overlap": [
+      "xun_feng"
+    ],
+    "has_observer": true,
+    "status": "PASS"
+  },
+  {
+    "case_id": "CB005",
+    "category": "safety_review",
+    "description": "安全审查：代码审计",
+    "input": "审查这段代码的安全性：eval(user_input)",
+    "expected_personas": [
+      "zhen_zao",
+      "gen_shou"
+    ],
+    "routed_personas": [
+      "kan_guan",
+      "zhen_zao",
+      "li_ming",
+      "gen_shou"
+    ],
+    "overlap": [
+      "zhen_zao",
+      "gen_shou"
+    ],
+    "has_observer": true,
+    "status": "PASS"
+  },
+  {
+    "case_id": "CB006",
+    "category": "creative",
+    "description": "创意：发散思维",
+    "input": "头脑风暴：如何优化这个系统的性能",
+    "expected_personas": [
+      "dui_ze"
+    ],
+    "routed_personas": [
+      "kan_guan",
+      "dui_ze",
+      "li_ming"
+    ],
+    "overlap": [
+      "dui_ze"
+    ],
+    "has_observer": true,
+    "status": "PASS"
+  },
+  {
+    "case_id": "CB007",
+    "category": "communication",
+    "description": "沟通：文档优化",
+    "input": "把这段技术文档改写得更易懂",
+    "expected_personas": [
+      "li_ming"
+    ],
+    "routed_personas": [
+      "kan_guan",
+      "zhen_zao",
+      "li_ming",
+      "gen_shou"
+    ],
+    "overlap": [
+      "li_ming"
+    ],
+    "has_observer": true,
+    "status": "PASS"
+  },
+  {
+    "case_id": "CB008",
+    "category": "management",
+    "description": "管理：项目规划",
+    "input": "规划一个新功能的开发流程",
+    "expected_personas": [
+      "kun_zai"
+    ],
+    "routed_personas": [
+      "kan_guan",
+      "li_ming",
+      "gen_shou",
+      "zhen_zao",
+      "kun_zai"
+    ],
+    "overlap": [
+      "kun_zai"
+    ],
+    "has_observer": true,
+    "status": "PASS"
+  },
+  {
+    "case_id": "CB009",
+    "category": "observation",
+    "description": "观察：元认知审查",
+    "input": "审查这个多人格协作的决策质量",
+    "expected_personas": [
+      "kan_guan"
+    ],
+    "routed_personas": [
+      "qian_duan",
+      "kan_guan",
+      "li_ming",
+      "gen_shou",
+      "kun_zai"
+    ],
+    "overlap": [
+      "kan_guan"
+    ],
+    "has_observer": true,
+    "status": "PASS"
+  },
+  {
+    "case_id": "CB010",
+    "category": "complex_collaboration",
+    "description": "复杂协作：多人格联合",
+    "input": "设计并实现一个用户认证系统，需要调研、架构、安全审查",
+    "expected_personas": [
+      "xun_feng",
+      "zhen_zao",
+      "kun_zai",
+      "gen_shou"
+    ],
+    "routed_personas": [
+      "xun_feng",
+      "kan_guan",
+      "li_ming",
+      "gen_shou",
+      "zhen_zao"
+    ],
+    "overlap": [
+      "xun_feng",
+      "zhen_zao",
+      "gen_shou"
+    ],
+    "has_observer": true,
+    "status": "PASS"
+  }
+]

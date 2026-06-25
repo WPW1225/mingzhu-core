@@ -1,0 +1,29 @@
+{
+  "timestamp": "2026-06-25 16:57:49",
+  "duration": 0.13750934600830078,
+  "results": {
+    "red_lines": {
+      "passed": 16,
+      "failed": 0,
+      "total": 16,
+      "critical_ok": true,
+      "status": "PASS"
+    },
+    "personality": {
+      "passed": 6,
+      "total": 6,
+      "status": "PASS"
+    },
+    "capability": {
+      "passed": 10,
+      "total": 10,
+      "status": "PASS"
+    },
+    "adversarial": {
+      "critical_detected": 3,
+      "critical_total": 3,
+      "status": "PASS"
+    }
+  },
+  "overall": "PASS"
+}
