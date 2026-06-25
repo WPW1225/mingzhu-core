@@ -4,6 +4,51 @@
 
 ---
 
+## [2.1.0] - 2026-06-26
+
+### 重大变更：元认知循环可执行化
+
+将 SOUL.md 中"预见→执行→反思"三阶段从散文描述转为机器可读的结构化配置 + 可强制执行的代码，使元认知本身成为可测试的机制，而非口号。
+
+#### 提示词工程：认知循环结构化
+- 在 `config/soul_config.yaml` 新增 `cognitive_cycle` 配置段（第八章）
+- 基于 Zimmerman 自我调节学习模型（SRL），三阶段全部结构化：
+  - **预见（Forethought）**：任务分析4问 + 任务拆分规则 + 认知偏差预检3项 + 执行驱动触发信号5条
+  - **执行（Performance）**：6项固定任务（编译验证、Todo打钩、进度汇报、全量测试、远程同步、必须push）
+  - **反思（Reflection）**：三段式复盘（事实/思维/迭代）+ 6条底线 + 输出位置配置
+- `enforce_strict: true`：强制三阶段依次完成，缺一报错
+
+#### 代码架构：CognitiveCycle 类
+- 新增 `agent_system/cognitive_cycle.py`：
+  - `CognitiveCycle` 类：从 YAML 加载配置，强制执行三阶段
+  - `PhaseRecord` / `CycleResult` 数据结构：结构化记录每阶段执行情况
+  - `_detect_execution_drive()`：检测"目标未回答就动手"等执行驱动特征，主动刹车
+  - `run(task, forethought_fn, execute_fn, reflect_fn)`：完整循环入口
+- 设计原则：enforce_strict=True 时跳过预见/执行阶段抛 ValueError；反思阶段不可省略
+
+#### 评估与测试：认知循环测试
+- 新增 `tests/test_cognitive_cycle.py`：4个测试维度，15个检查项
+  - 配置完整性：三阶段配置齐全、必答项完整
+  - 执行驱动检测：目标未回答触发警告、目标清晰无警告
+  - 强制执行：跳过预见抛 ValueError、未提供反思标记未完成
+  - 完整循环：三阶段全部完成、记录可序列化
+- 集成到 `tests/run_all_tests.py`：测试套件从4个增至5个
+- 全部测试通过率：100%（5套件）
+
+#### 文档与协作
+- 新增 `RELEASE.md`：版本发布流程（语义化版本 + Release Checklist）
+- 更新 `CONTRIBUTING.md`：增加"修改认知循环配置"和"添加认知循环测试"指南
+- 更新 `PROJECT_LOG.md`：记录 v2.1 元认知教训（执行驱动复发与克服）
+
+### 核心改进动机
+
+回答"元认知预见→执行→三段式复盘是否还在执行"的疑问：
+- v2.0 之前，三阶段只是 SOUL.md 中的散文描述，无法被代码强制执行，容易在"执行驱动"下被跳过
+- v2.1 将三阶段结构化为 YAML 配置 + CognitiveCycle 类，使元认知成为可测试、可审计的机制
+- 执行驱动信号被显式列出并自动检测，从"事后反思"升级为"事前刹车"
+
+---
+
 ## [2.0.0] - 2026-06-26
 
 ### 重大变更

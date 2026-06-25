@@ -84,6 +84,21 @@ def run_all_tests():
         print(f"❌ 对抗性测试出错：{e}")
     print()
 
+    # 5. 认知循环测试
+    print(">>> 运行认知循环测试...")
+    try:
+        from tests.test_cognitive_cycle import test_cognitive_cycle
+        passed, total = test_cognitive_cycle()
+        results["cognitive_cycle"] = {
+            "passed": passed,
+            "total": total,
+            "status": "PASS" if passed == total else "FAIL",
+        }
+    except Exception as e:
+        results["cognitive_cycle"] = {"status": "ERROR", "error": str(e)}
+        print(f"❌ 认知循环测试出错：{e}")
+    print()
+
     # 汇总
     duration = time.time() - start_time
     print("=" * 70)

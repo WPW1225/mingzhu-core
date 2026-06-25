@@ -17,6 +17,7 @@ digital-twin-core/
 ├── agent_system/              # Agent 系统
 │   ├── __init__.py            # MingZhu 主类
 │   ├── config_loader.py       # 配置加载器
+│   ├── cognitive_cycle.py     # 认知循环（预见→执行→反思）
 │   ├── evaluator.py           # LLM-as-a-Judge 评估器
 │   └── collaboration.py       # 多人格协作协议
 ├── tests/                     # 测试套件
@@ -24,6 +25,7 @@ digital-twin-core/
 │   ├── test_personality.py    # 人格一致性测试
 │   ├── test_capability.py     # 能力基准测试
 │   ├── test_adversarial.py    # 对抗性测试
+│   ├── test_cognitive_cycle.py # 认知循环测试
 │   └── run_all_tests.py       # 测试运行器
 ├── SOUL.md                    # 系统提示词（引用配置）
 ├── ASTRO.md                   # 西方占星数据
@@ -55,6 +57,20 @@ digital-twin-core/
 2. 每条红线包含 `id`、`category`、`title`、`description`、`violation_examples`、`test_cases`
 3. 在 `agent_system/evaluator.py` 的 `REQUEST_PATTERNS` 和 `VIOLATION_PATTERNS` 中添加对应的检测模式
 4. 运行红线测试验证：`python3 tests/test_red_lines.py`
+
+### 2.4 修改认知循环配置
+
+认知循环（预见→执行→反思）是 v2.1 新增的可执行元认知机制，配置位于 `config/soul_config.yaml` 的 `cognitive_cycle` 段。
+
+1. **修改三阶段内容**：编辑 `cognitive_cycle.forethought` / `performance` / `reflection` 下的具体规则
+2. **新增任务分析问题**：在 `forethought.task_analysis` 下添加，必须包含 `id`、`question`、`must_answer`
+3. **新增执行驱动信号**：在 `forethought.execution_drive_signals` 下添加字符串描述
+4. **新增固定任务**：在 `performance.fixed_tasks` 下添加，必须包含 `id`、`rule`
+5. **修改反思三段式**：在 `reflection.three_step_review` 下添加，必须包含 `id`、`name`、`question`、`must_answer`
+6. 运行认知循环测试验证：`python3 tests/test_cognitive_cycle.py`
+7. 运行全部测试验证：`python3 tests/run_all_tests.py`
+
+> ⚠️ 注意：`enforce_strict: true` 时，`CognitiveCycle.run()` 会强制三阶段依次完成。修改配置后务必确认测试通过，否则可能导致 Agent 无法正常执行任务。
 
 ---
 
@@ -91,6 +107,17 @@ test_cases:
 ### 3.3 对抗性测试用例
 
 在 `tests/test_adversarial.py` 的 `ADVERSARIAL_CASES` 列表中添加，并在 `detect_attack_type` 函数中添加对应的检测模式。
+
+### 3.4 认知循环测试用例
+
+在 `tests/test_cognitive_cycle.py` 的对应测试函数中添加检查项。认知循环测试有4个维度：
+
+1. **配置完整性**（`test_config_integrity`）：验证三阶段配置齐全、必答项完整
+2. **执行驱动检测**（`test_execution_drive_detection`）：验证目标未回答触发警告、目标清晰无警告
+3. **强制执行**（`test_strict_enforcement`）：验证跳过预见抛 ValueError、未提供反思标记未完成
+4. **完整循环**（`test_full_cycle`）：验证三阶段全部完成、记录可序列化
+
+添加新检查项时，在对应测试函数的 `checks` 列表中追加 `assert` 语句，并更新该函数返回的 `(passed, total)` 计数。
 
 ---
 
@@ -145,5 +172,6 @@ python3 tests/run_all_tests.py
 - 人格一致性测试（6个用例，100%通过）
 - 能力基准测试（10个用例，100%通过）
 - 对抗性测试（10个用例，100%通过）
+- 认知循环测试（15个检查项，100%通过）
 
 CI/CD 会自动运行这些测试，未通过不可合并。
