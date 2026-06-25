@@ -114,6 +114,36 @@ def chat_with_details(user_input: str, session_id: str = "default") -> Dict[str,
     except Exception:
         pass  # 记忆失败不影响主流程
 
+    # v3.4: 自我进化——提取经验、检测纠正、学习偏好
+    try:
+        from .evolution import get_engine, Experience, Preference
+        engine = get_engine()
+        graph = _get_graph()
+
+        # 检测用户是否在纠正明烛
+        correction = engine.detect_correction(user_input, graph.router)
+        if correction:
+            engine.record_preference(Preference(
+                timestamp=_time.strftime("%Y-%m-%d %H:%M:%S"),
+                trigger=user_input[:100], preference=correction,
+            ))
+
+        # 提取可复用经验
+        lesson = engine.extract_lesson(
+            user_input, output["output"], output["observer"], graph.router
+        )
+        engine.record_experience(Experience(
+            timestamp=_time.strftime("%Y-%m-%d %H:%M:%S"),
+            user_input=user_input, output=output["output"],
+            personas=[p["name"] for p in output["personas"]],
+            schedule=result.get("schedule", {}).get("strategy", "unknown"),
+            observer_report=output["observer"],
+            outcome="corrected" if correction else "success",
+            lesson=lesson, reusable=bool(lesson),
+        ))
+    except Exception:
+        pass  # 进化失败不影响主流程
+
     return output
 
 
@@ -139,6 +169,12 @@ def cost_summary() -> Dict:
     """获取成本统计（累计费用、按后端/场景分布）"""
     from .cost_monitor import get_monitor
     return get_monitor().summary()
+
+
+def evolution_summary() -> Dict:
+    """获取自我进化状态（经验数、教训数、偏好数）"""
+    from .evolution import get_engine
+    return get_engine().summary()
 
 
 def reset_session(session_id: str = "default"):
@@ -189,19 +225,27 @@ def chat_stream(user_input: str, session_id: str = "default"):
                 if end > 0:
                     yield {"type": "tool", "info": line[:end+1], "detail": line[end+1:][:200]}
 
-    # 阶段3：逐个人格执行（流式）
+    # 阶段3：逐组执行人格（按调度策略）
     context = tool_ctx
     persona_results = []
-    for pid in persona_ids:
-        cfg = PERSONAS.get(pid, {})
-        yield {"type": "persona_start", "name": cfg.get("name", pid), "icon": cfg.get("icon", "")}
+    schedule = None
 
-        state = {"user_input": user_input, "context": context, "persona_ids": [pid]}
-        exec_result = graph._node_execute_personas(state)
-        for r in exec_result["persona_results"]:
-            persona_results.append(r)
-            yield {"type": "persona_done", "name": r["name"],
-                   "content": r.get("content", ""), "confidence": r.get("confidence", "")}
+    # 用图引擎的执行节点（含智能调度）
+    exec_state = {"user_input": user_input, "context": context, "persona_ids": persona_ids}
+    exec_result = graph._node_execute_personas(exec_state)
+    persona_results = exec_result.get("persona_results", [])
+    schedule = exec_result.get("schedule", {})
+
+    # 流式输出调度策略
+    if schedule:
+        yield {"type": "schedule", "strategy": schedule.get("strategy", ""),
+               "groups": schedule.get("groups", []),
+               "reason": schedule.get("reason", "")}
+
+    # 流式输出各人格结果
+    for r in persona_results:
+        yield {"type": "persona_done", "name": r["name"],
+               "content": r.get("content", ""), "confidence": r.get("confidence", "")}
 
     # 阶段4：安全检查 + 冲突检测
     state = {"persona_results": persona_results}

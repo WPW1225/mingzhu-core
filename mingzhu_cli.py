@@ -52,6 +52,16 @@ def stream_response(question: str, session_id: str):
             print(f"\r\033[38;5;244m路由: {','.join(event['personas'])}"
                   f" ({event['method']})          \033[0m")
 
+        elif etype == "schedule":
+            strat = event.get("strategy", "")
+            strat_color = {"parallel": "32", "sequential": "33",
+                           "mixed": "36", "iterative": "35"}.get(strat, "33")
+            groups = event.get("groups", [])
+            groups_str = " → ".join("+".join(g) for g in groups)
+            print(f"\033[{strat_color}m  调度: {strat} | {groups_str}\033[0m")
+            if event.get("reason"):
+                print(f"\033[38;5;244m  理由: {event['reason'][:80]}\033[0m")
+
         elif etype == "tool":
             print(f"\033[38;5;39m  {event['info']}\033[0m")
 

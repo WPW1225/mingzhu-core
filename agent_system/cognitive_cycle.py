@@ -391,6 +391,33 @@ class CognitiveCycle:
         ]
         all_answered = all(answers.get(qid) for qid in must_ids)
         rec.completed = all_answered
+
+        # v3.4: 元元认知——校验反思质量
+        if all_answered:
+            try:
+                from .meta_cognition import evaluate_reflection, should_redo_reflection
+                from .llm_backends import get_router
+                router = get_router()
+                score = evaluate_reflection(
+                    factual=str(answers.get("factual", "")),
+                    cognitive=str(answers.get("cognitive", "")),
+                    iterative=str(answers.get("iterative", "")),
+                    router=router,
+                )
+                rec.answers["_meta_cognition"] = score.to_dict()
+                if score.verdict == "invalid":
+                    rec.warnings.append(
+                        f"元元认知警告：反思质量不合格（{score.overall:.0f}分）。"
+                        f"{score.critique} 建议重做。"
+                    )
+                elif score.verdict == "valid":
+                    rec.warnings.append(
+                        f"元元认知：反思合格（{score.overall:.0f}分），可改进。"
+                        f"{score.critique}"
+                    )
+            except Exception as e:
+                logger.debug(f"元元认知校验失败: {e}")
+
         rec.finished_at = time.strftime("%Y-%m-%d %H:%M:%S")
         return rec
 

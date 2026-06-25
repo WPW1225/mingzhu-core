@@ -167,46 +167,118 @@ class MingZhuGraph:
         }
 
     def _node_execute_personas(self, state: MingZhuState) -> Dict:
-        """执行节点：调用各子人格（v3.3 顺序协作，后执行者能看到先执行者的输出）
+        """执行节点：按调度策略执行子人格（v3.4 智能调度）
 
-        改进：从纯并行改为顺序协作——每个人格执行时，能看到之前人格的输出摘要，
-        可以引用、补充或质疑。这是"人格间消息传递"的轻量实现。
+        支持四种策略：
+        - parallel: 所有分组同时执行
+        - sequential: 分组间顺序执行，后组能看到前组输出
+        - mixed: 组内并行，组间顺序
+        - iterative: 执行→审查→修正循环
         """
+        from .scheduler import plan_schedule, ScheduleStrategy
+
         persona_ids = state.get("persona_ids", [])
         user_input = state.get("user_input", "")
         context = state.get("context", "")
 
-        # 工具集成：某些人格在执行前先调用工具获取信息
+        # 工具集成
         tool_context = self._maybe_call_tools(persona_ids, user_input)
         if tool_context:
             context = (context + "\n\n" + tool_context).strip()
 
+        # v3.4: 注入进化上下文（学到的经验和偏好）
+        try:
+            from .evolution import get_engine
+            evo_ctx = get_engine().get_evolution_context()
+            if evo_ctx:
+                context = (context + "\n\n" + evo_ctx).strip()
+        except Exception:
+            pass
+
+        # v3.4: 智能调度决策
+        schedule = plan_schedule(persona_ids, user_input, self.router)
+
         results = []
-        prior_outputs = []  # 已执行人格的输出摘要（供后续人格参考）
+        prior_outputs = []  # 跨分组传递的输出摘要
 
-        for pid in persona_ids:
-            persona_cfg = PERSONAS.get(pid, {})
-            persona_name = persona_cfg.get("name", pid)
-            persona_icon = persona_cfg.get("icon", "")
+        # 按调度计划执行
+        for group_idx, group in enumerate(schedule.groups):
+            group_results = self._execute_group(
+                group, user_input, context, prior_outputs
+            )
+            results.extend(group_results)
+            # 收集本组输出供下一组参考
+            for r in group_results:
+                if r.get("content"):
+                    prior_outputs.append(f"{r['name']}: {r['content'][:300]}")
 
-            # 加载人格 prompt
-            try:
-                persona_content = self.mz._load_persona(pid)
-            except Exception as e:
-                results.append({
-                    "persona": pid, "name": persona_name, "icon": persona_icon,
-                    "content": "", "confidence": "低", "vetoed": False,
-                    "error": f"加载人格失败: {e}",
-                })
-                continue
+        # 迭代策略：如果需要且未通过审查，循环修正
+        if schedule.needs_iteration and schedule.max_iterations > 1:
+            results = self._iterative_refine(
+                results, user_input, context, schedule.max_iterations
+            )
 
-            # 构造系统提示词（含之前人格的输出，实现协作）
-            prior_context = ""
-            if prior_outputs:
-                prior_context = "\n\n【其他人格已给出的分析（你可引用/补充/质疑）】\n" + \
-                                "\n---\n".join(prior_outputs)
+        # 记录调度策略到state（供流式输出和审计）
+        return {
+            "persona_results": results,
+            "schedule": schedule.to_dict(),
+        }
 
-            system_prompt = f"""你是「{persona_name}」，明烛数字分身的子人格。
+    def _execute_group(self, group: List[str], user_input: str,
+                       context: str, prior_outputs: List[str]) -> List[Dict]:
+        """执行一组人格（组内并行，用线程池）"""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        if len(group) <= 1:
+            # 单人格直接执行
+            pid = group[0] if group else None
+            return [self._execute_single_persona(pid, user_input, context, prior_outputs)] if pid else []
+
+        # 多人格并行执行
+        results = []
+        with ThreadPoolExecutor(max_workers=min(len(group), 3)) as executor:
+            futures = {
+                executor.submit(self._execute_single_persona, pid, user_input, context, prior_outputs): pid
+                for pid in group
+            }
+            for future in as_completed(futures):
+                try:
+                    results.append(future.result())
+                except Exception as e:
+                    pid = futures[future]
+                    results.append({
+                        "persona": pid, "name": PERSONAS.get(pid, {}).get("name", pid),
+                        "icon": PERSONAS.get(pid, {}).get("icon", ""),
+                        "content": "", "confidence": "低", "error": str(e),
+                    })
+        # 按persona_ids原始顺序排序
+        order = {pid: i for i, pid in enumerate(group)}
+        results.sort(key=lambda r: order.get(r.get("persona", ""), 999))
+        return results
+
+    def _execute_single_persona(self, pid: str, user_input: str,
+                                 context: str, prior_outputs: List[str]) -> Dict:
+        """执行单个子人格（含协作上下文）"""
+        persona_cfg = PERSONAS.get(pid, {})
+        persona_name = persona_cfg.get("name", pid)
+        persona_icon = persona_cfg.get("icon", "")
+
+        try:
+            persona_content = self.mz._load_persona(pid)
+        except Exception as e:
+            return {
+                "persona": pid, "name": persona_name, "icon": persona_icon,
+                "content": "", "confidence": "低", "vetoed": False,
+                "error": f"加载人格失败: {e}",
+            }
+
+        # 构造系统提示词（含之前人格的输出）
+        prior_context = ""
+        if prior_outputs:
+            prior_context = "\n\n【其他人格已给出的分析（你可引用/补充/质疑）】\n" + \
+                            "\n---\n".join(prior_outputs[-3:])  # 最多3条防token爆炸
+
+        system_prompt = f"""你是「{persona_name}」，明烛数字分身的子人格。
 
 {persona_content}
 {prior_context}
@@ -217,33 +289,55 @@ class MingZhuGraph:
 3. 如果是艮守且发现安全问题，标注「否决」
 4. 如果是坎观，提供观察报告
 """
+        scene = Scene.SAFETY if pid == "gen_shou" else Scene.ANALYSIS
+        full_prompt = user_input if not context else f"{context}\n\n当前问题：{user_input}"
+        resp = self.router.generate(full_prompt, system_prompt=system_prompt, scene=scene)
 
-            # 真正调用 LLM
-            scene = Scene.SAFETY if pid == "gen_shou" else Scene.ANALYSIS
-            full_prompt = user_input if not context else f"{context}\n\n当前问题：{user_input}"
-            resp = self.router.generate(
-                full_prompt, system_prompt=system_prompt, scene=scene,
-            )
+        content = resp.content if resp.ok else f"（{persona_name} 调用失败：{resp.error}）"
+        vetoed = "否决" in content and pid == "gen_shou"
+        confidence = "中"
+        if "置信度：高" in content or "置信度: 高" in content:
+            confidence = "高"
+        elif "置信度：低" in content or "置信度: 低" in content:
+            confidence = "低"
 
-            content = resp.content if resp.ok else f"（{persona_name} 调用失败：{resp.error}）"
-            vetoed = "否决" in content and pid == "gen_shou"
-            confidence = "中"
-            if "置信度：高" in content or "置信度: 高" in content:
-                confidence = "高"
-            elif "置信度：低" in content or "置信度: 低" in content:
-                confidence = "低"
+        return {
+            "persona": pid, "name": persona_name, "icon": persona_icon,
+            "content": content, "confidence": confidence,
+            "vetoed": vetoed, "error": resp.error,
+            "model": resp.model, "backend": resp.backend,
+        }
 
-            results.append({
-                "persona": pid, "name": persona_name, "icon": persona_icon,
-                "content": content, "confidence": confidence,
-                "vetoed": vetoed, "error": resp.error,
-                "model": resp.model, "backend": resp.backend,
-            })
+    def _iterative_refine(self, results: List[Dict], user_input: str,
+                          context: str, max_iterations: int) -> List[Dict]:
+        """迭代修正：坎观审查→相关人格修正，循环直到通过或达到上限"""
+        for iteration in range(max_iterations - 1):
+            # 坎观审查当前结果
+            observer_result = self._node_observe({"persona_results": results, "final_output": ""})
+            observer_report = observer_result.get("observer_report", "")
 
-            # 收集输出摘要供后续人格参考（限制长度防 token 爆炸）
-            prior_outputs.append(f"{persona_name}: {content[:300]}")
+            # 如果坎观认为没问题了，停止迭代
+            if "无重大问题" in observer_report or "质量良好" in observer_report:
+                break
 
-        return {"persona_results": results}
+            # 找到需要修正的人格（坎观指出的）
+            # 简化：让相关人格基于坎观反馈重新分析
+            refine_hint = f"\n\n【坎观第{iteration+1}轮审查反馈】\n{observer_report[:500]}\n\n请根据反馈修正你的分析。"
+            prior = [f"坎观: {observer_report[:300]}"]
+            new_results = []
+            for r in results:
+                if r.get("error") or not r.get("content"):
+                    new_results.append(r)
+                    continue
+                # 重新执行该人格，带上坎观反馈
+                refined = self._execute_single_persona(
+                    r["persona"], user_input, context + refine_hint, prior
+                )
+                refined["iteration"] = iteration + 2
+                new_results.append(refined)
+            results = new_results
+
+        return results
 
     def _maybe_call_tools(self, persona_ids: List[str], user_input: str) -> str:
         """工具集成：根据人格配置的 tools 字段，自动调用合适的工具。
