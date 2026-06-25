@@ -52,64 +52,100 @@ class LLMResponse:
 
 
 class ZhipuBackend:
-    """智谱清言后端（通过 z-ai-web-dev-sdk CLI 调用）"""
+    """智谱清言后端（直接 API 调用，OpenAI 兼容格式）
+
+    激活方式：设置环境变量 ZHIPU_API_KEY
+    未设置时降级到 z-ai CLI（兼容旧环境）
+    """
 
     name = "zhipu"
     default_model = "glm-4-plus"
+    api_base = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 
     def __init__(self):
-        # z-ai CLI 已配置好 API key，无需额外设置
-        pass
+        self.api_key = os.environ.get("ZHIPU_API_KEY", "")
+
+    def is_available(self) -> bool:
+        return bool(self.api_key)
 
     def generate(self, prompt: str, system_prompt: str = "",
                  temperature: float = 0.3, max_tokens: int = 1500,
                  model: str = None) -> LLMResponse:
-        import subprocess
         import time as _time
+        import urllib.request
 
         start = _time.time()
         model = model or self.default_model
 
-        # 构造完整 prompt（z-ai chat 的 -p 参数）
+        # 优先用直接 API 调用（更快更稳定）
+        if self.is_available():
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+
+            payload = json.dumps({
+                "model": model, "messages": messages,
+                "temperature": temperature, "max_tokens": max_tokens,
+            }).encode("utf-8")
+
+            try:
+                req = urllib.request.Request(
+                    self.api_base,
+                    data=payload,
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=60) as resp_raw:
+                    data = json.loads(resp_raw.read().decode("utf-8"))
+                latency = (_time.time() - start) * 1000
+
+                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                usage = data.get("usage", {})
+                return LLMResponse(
+                    content=content, model=data.get("model", model),
+                    backend=self.name, usage=usage, latency_ms=latency,
+                )
+            except Exception as e:
+                latency = (_time.time() - start) * 1000
+                return LLMResponse(content="", model=model, backend=self.name,
+                                 latency_ms=latency, error=f"智谱API异常: {e}")
+
+        # 降级：z-ai CLI（兼容无 key 环境）
+        return self._generate_via_cli(prompt, system_prompt, temperature, max_tokens, model, start)
+
+    def _generate_via_cli(self, prompt, system_prompt, temperature, max_tokens, model, start):
+        import subprocess
         full_prompt = prompt
         if system_prompt:
             full_prompt = f"[系统指令]\n{system_prompt}\n\n[用户输入]\n{prompt}"
-
         try:
             result = subprocess.run(
                 ["z-ai", "chat", "-p", full_prompt],
                 capture_output=True, text=True, timeout=60,
             )
             latency = (_time.time() - start) * 1000
-
             if result.returncode != 0:
-                return LLMResponse(
-                    content="", model=model, backend=self.name,
-                    latency_ms=latency, error=f"z-ai CLI 失败: {result.stderr[:200]}"
-                )
-
-            # 解析 JSON 输出
+                return LLMResponse(content="", model=model, backend=self.name,
+                                 latency_ms=latency, error=f"z-ai CLI 失败: {result.stderr[:200]}")
             output = result.stdout
             idx = output.find('{')
             if idx < 0:
-                return LLMResponse(
-                    content=output.strip(), model=model, backend=self.name,
-                    latency_ms=latency
-                )
+                return LLMResponse(content=output.strip(), model=model,
+                                 backend=self.name, latency_ms=latency)
             data = json.loads(output[idx:])
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            usage = data.get("usage", {})
-
-            return LLMResponse(
-                content=content, model=data.get("model", model),
-                backend=self.name, usage=usage, latency_ms=latency,
-            )
+            return LLMResponse(content=content, model=data.get("model", model),
+                             backend=self.name, usage=data.get("usage", {}),
+                             latency_ms=latency)
         except subprocess.TimeoutExpired:
             return LLMResponse(content="", model=model, backend=self.name,
                              error="z-ai CLI 超时（60s）")
         except Exception as e:
             return LLMResponse(content="", model=model, backend=self.name,
-                             error=f"智谱后端异常: {e}")
+                             error=f"智谱CLI异常: {e}")
 
 
 class DeepSeekBackend:
@@ -132,8 +168,8 @@ class DeepSeekBackend:
     def generate(self, prompt: str, system_prompt: str = "",
                  temperature: float = 0.3, max_tokens: int = 1500,
                  model: str = None) -> LLMResponse:
-        import subprocess
         import time as _time
+        import urllib.request
 
         start = _time.time()
         model = model or self.default_model
@@ -148,40 +184,35 @@ class DeepSeekBackend:
         messages.append({"role": "user", "content": prompt})
 
         payload = json.dumps({
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        })
+            "model": model, "messages": messages,
+            "temperature": temperature, "max_tokens": max_tokens,
+        }).encode("utf-8")
 
         try:
-            result = subprocess.run(
-                ["curl", "-s", self.api_base,
-                 "-H", f"Authorization: Bearer {self.api_key}",
-                 "-H", "Content-Type: application/json",
-                 "-d", payload],
-                capture_output=True, text=True, timeout=60,
+            req = urllib.request.Request(
+                self.api_base,
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
             )
+            with urllib.request.urlopen(req, timeout=60) as resp_raw:
+                data = json.loads(resp_raw.read().decode("utf-8"))
             latency = (_time.time() - start) * 1000
-            data = json.loads(result.stdout)
 
             if "error" in data:
-                return LLMResponse(
-                    content="", model=model, backend=self.name,
-                    latency_ms=latency,
-                    error=data["error"].get("message", "DeepSeek API 错误")
-                )
+                return LLMResponse(content="", model=model, backend=self.name,
+                                 latency_ms=latency,
+                                 error=data["error"].get("message", "DeepSeek API 错误"))
 
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             usage = data.get("usage", {})
-
-            return LLMResponse(
-                content=content, model=data.get("model", model),
-                backend=self.name, usage=usage, latency_ms=latency,
-            )
+            return LLMResponse(content=content, model=data.get("model", model),
+                             backend=self.name, usage=usage, latency_ms=latency)
         except Exception as e:
             return LLMResponse(content="", model=model, backend=self.name,
-                             error=f"DeepSeek 后端异常: {e}")
+                             error=f"DeepSeek后端异常: {e}")
 
 
 class LLMRouter:
@@ -256,11 +287,15 @@ class LLMRouter:
     def status(self) -> Dict[str, Any]:
         """返回后端状态摘要"""
         return {
-            "zhipu": {"available": True, "model": self.zhipu.default_model},
+            "zhipu": {
+                "available": self.zhipu.is_available(),
+                "model": self.zhipu.default_model,
+                "note": "已激活（直接API）" if self.zhipu.is_available() else "设置 ZHIPU_API_KEY 或降级用 z-ai CLI",
+            },
             "deepseek": {
                 "available": self.deepseek.is_available(),
                 "model": self.deepseek.default_model,
-                "note": "设置 DEEPSEEK_API_KEY 环境变量以激活" if not self.deepseek.is_available() else "已激活",
+                "note": "已激活" if self.deepseek.is_available() else "设置 DEEPSEEK_API_KEY 环境变量以激活",
             },
             "total_calls": len(self._call_log),
         }

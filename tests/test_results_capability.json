@@ -8,8 +8,8 @@
       "li_ming"
     ],
     "routed_personas": [
-      "li_ming",
       "qian_duan",
+      "li_ming",
       "kan_guan"
     ],
     "overlap": [
@@ -24,14 +24,14 @@
     "description": "推理：权衡分析",
     "input": "分析一下这个方案的利弊：微服务架构vs单体架构",
     "expected_personas": [
-      "xun_feng",
-      "qian_duan"
+      "qian_duan",
+      "xun_feng"
     ],
     "routed_personas": [
-      "zhen_zao",
       "qian_duan",
-      "li_ming",
       "kan_guan",
+      "li_ming",
+      "zhen_zao",
       "gen_shou"
     ],
     "overlap": [
@@ -50,9 +50,9 @@
     ],
     "routed_personas": [
       "zhen_zao",
-      "kan_guan",
+      "gen_shou",
       "li_ming",
-      "gen_shou"
+      "kan_guan"
     ],
     "overlap": [
       "zhen_zao"
@@ -70,8 +70,8 @@
     ],
     "routed_personas": [
       "xun_feng",
-      "kan_guan",
-      "li_ming"
+      "li_ming",
+      "kan_guan"
     ],
     "overlap": [
       "xun_feng"
@@ -90,9 +90,9 @@
     ],
     "routed_personas": [
       "zhen_zao",
-      "kan_guan",
+      "gen_shou",
       "li_ming",
-      "gen_shou"
+      "kan_guan"
     ],
     "overlap": [
       "zhen_zao",
@@ -110,8 +110,8 @@
       "dui_ze"
     ],
     "routed_personas": [
-      "li_ming",
       "dui_ze",
+      "li_ming",
       "kan_guan"
     ],
     "overlap": [
@@ -130,9 +130,9 @@
     ],
     "routed_personas": [
       "zhen_zao",
-      "kan_guan",
+      "gen_shou",
       "li_ming",
-      "gen_shou"
+      "kan_guan"
     ],
     "overlap": [
       "li_ming"
@@ -149,11 +149,11 @@
       "kun_zai"
     ],
     "routed_personas": [
-      "zhen_zao",
-      "kun_zai",
-      "li_ming",
       "kan_guan",
-      "gen_shou"
+      "li_ming",
+      "zhen_zao",
+      "gen_shou",
+      "kun_zai"
     ],
     "overlap": [
       "kun_zai"
@@ -171,10 +171,10 @@
     ],
     "routed_personas": [
       "qian_duan",
-      "kun_zai",
-      "li_ming",
       "kan_guan",
-      "gen_shou"
+      "li_ming",
+      "gen_shou",
+      "kun_zai"
     ],
     "overlap": [
       "kan_guan"
@@ -190,14 +190,14 @@
     "expected_personas": [
       "zhen_zao",
       "xun_feng",
-      "kun_zai",
-      "gen_shou"
+      "gen_shou",
+      "kun_zai"
     ],
     "routed_personas": [
-      "zhen_zao",
-      "li_ming",
       "kan_guan",
       "xun_feng",
+      "li_ming",
+      "zhen_zao",
       "gen_shou"
     ],
     "overlap": [

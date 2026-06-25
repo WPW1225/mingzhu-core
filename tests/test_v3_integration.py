@@ -165,6 +165,22 @@ def test_langgraph_engine():
     print(f"  ✅ LLM 真实调用（backend=zhipu）")
     passed += 1
 
+    # 3.6 坎观 LLM 深度审查（v3.1 新增）
+    total += 1
+    observer = result3.get("observer_report", "")
+    # LLM审查报告应该比纯统计更长（含分析内容）
+    assert len(observer) > 50, f"坎观观察报告应含LLM深度分析，实际过短：{observer}"
+    print(f"  ✅ 坎观 LLM 深度审查（报告{len(observer)}字）")
+    passed += 1
+
+    # 3.7 统一入口 api.chat 可用
+    total += 1
+    from agent_system.api import chat
+    reply = chat("回复OK", session_id="api-test")
+    assert len(reply) > 0, "统一入口应返回非空回复"
+    print(f"  ✅ 统一入口 api.chat 可用（回复{len(reply)}字）")
+    passed += 1
+
     print(f"  → LangGraph 引擎：{passed}/{total} 通过\n")
     return passed, total
 

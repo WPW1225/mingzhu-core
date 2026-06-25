@@ -116,16 +116,25 @@ class MingZhuGraph:
     # ---------- 节点实现 ----------
 
     def _node_route(self, state: MingZhuState) -> Dict:
-        """路由节点：决定调用哪些子人格"""
+        """路由节点：决定调用哪些子人格（P1-5 语义路由增强）"""
         user_input = state.get("user_input", "")
+
+        # 第一层：关键词快速路由（低成本）
         persona_ids = self.mz.route(user_input)
 
-        # 语义路由增强：用 LLM 判断是否需要补充人格（P1-5）
-        if len(persona_ids) == 1 and persona_ids[0] == "qian_duan":
-            # 默认路由到乾断时，用 LLM 复核是否需要补充
+        # 第二层：LLM 语义路由（当关键词路由不确定时启用）
+        # 触发条件：①只路由到默认乾断 ②输入较短无明确关键词 ③用户明确要求多视角
+        needs_llm_route = (
+            len(persona_ids) == 1 and persona_ids[0] == "qian_duan"
+        ) or len(user_input) < 8
+
+        if needs_llm_route:
             resp = self.router.generate(
-                prompt=f"用户输入：{user_input}\n\n判断这句话最需要哪种能力？只回答一个词：搜索调研/代码工程/逻辑决策/安全审查/管理协调/创意灵感/表达沟通/观察分析",
-                scene=Scene.ROUTING, max_tokens=20,
+                prompt=f"""用户输入：{user_input}
+
+判断这句话需要哪些能力（可多选，用逗号分隔，只回答能力名）：
+搜索调研/代码工程/逻辑决策/安全审查/管理协调/创意灵感/表达沟通/观察分析""",
+                scene=Scene.ROUTING, max_tokens=40,
             )
             if resp.ok:
                 keyword_map = {
@@ -134,22 +143,39 @@ class MingZhuGraph:
                     "管理协调": "kun_zai", "创意灵感": "dui_ze",
                     "表达沟通": "li_ming", "观察分析": "kan_guan",
                 }
+                llm_personas = []
                 for kw, pid in keyword_map.items():
-                    if kw in resp.content and pid not in persona_ids:
-                        persona_ids.append(pid)
-                        break
+                    if kw in resp.content and pid not in llm_personas:
+                        llm_personas.append(pid)
+                # 如果 LLM 给出了明确判断，用 LLM 的结果（更准）
+                if llm_personas:
+                    persona_ids = llm_personas
+
+        # 确保至少有一个人格
+        if not persona_ids:
+            persona_ids = ["qian_duan"]
+
+        # 限制最多3个人格（避免 token 爆炸）
+        if len(persona_ids) > 3:
+            persona_ids = persona_ids[:3]
 
         return {
             "persona_ids": persona_ids,
             "routing_reason": self.mz.explain_routing(user_input),
+            "routing_method": "llm" if needs_llm_route else "keyword",
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
 
     def _node_execute_personas(self, state: MingZhuState) -> Dict:
-        """执行节点：并行调用各子人格（真正调用 LLM）"""
+        """执行节点：并行调用各子人格（真正调用 LLM + 工具集成）"""
         persona_ids = state.get("persona_ids", [])
         user_input = state.get("user_input", "")
         context = state.get("context", "")
+
+        # 工具集成：某些人格在执行前先调用工具获取信息
+        tool_context = self._maybe_call_tools(persona_ids, user_input)
+        if tool_context:
+            context = (context + "\n\n" + tool_context).strip()
 
         results = []
         for pid in persona_ids:
@@ -204,6 +230,48 @@ class MingZhuGraph:
             })
 
         return {"persona_results": results}
+
+    def _maybe_call_tools(self, persona_ids: List[str], user_input: str) -> str:
+        """工具集成：根据人格和输入，自动调用合适的工具，返回工具结果作为上下文。
+
+        这是"角色扮演→真能做"的关键：巽风真的能搜，乾断真的能算。
+        """
+        tool_context_parts = []
+
+        try:
+            from .tools import get_registry
+            registry = get_registry()
+
+            # 巽风（搜索调研）：提取搜索词，调用 web_search
+            if "xun_feng" in persona_ids and len(user_input) > 10:
+                # 用 LLM 提取搜索关键词（轻量调用）
+                kw_resp = self.router.generate(
+                    prompt=f"从以下用户输入中提取1个最核心的搜索关键词（只返回关键词，不要其他内容）：\n{user_input}",
+                    scene=Scene.ROUTING, max_tokens=20,
+                )
+                if kw_resp.ok and kw_resp.content.strip():
+                    keyword = kw_resp.content.strip().strip('"\'""')
+                    # 限制关键词长度，防止注入
+                    if 2 <= len(keyword) <= 30:
+                        result = registry.call("web_search", query=keyword, num=3)
+                        if result.success and result.output:
+                            tool_context_parts.append(f"[巽风搜索结果·{keyword}]：\n{result.output[:800]}")
+
+            # 乾断（逻辑决策）：检测到计算表达式时调用 calculator
+            if "qian_duan" in persona_ids:
+                import re
+                # 检测数学表达式（如 "2*15+30" "100/4" "2**10"）
+                calc_match = re.search(r'(\d+(?:\.\d+)?\s*[*+\-/^]+\s*\d+(?:\.\d+)?(?:\s*[*+\-/^]+\s*\d+(?:\.\d+)?)*)', user_input)
+                if calc_match:
+                    expr = calc_match.group(1).replace('^', '**')
+                    result = registry.call("calculator", expression=expr)
+                    if result.success:
+                        tool_context_parts.append(f"[乾断计算结果·{expr}]：{result.output}")
+
+        except Exception as e:
+            logger.debug(f"工具调用失败（不影响主流程）: {e}")
+
+        return "\n\n".join(tool_context_parts)
 
     def _node_safety_check(self, state: MingZhuState) -> Dict:
         """安全检查节点：艮守审查，一票否决"""
@@ -281,23 +349,69 @@ class MingZhuGraph:
         return {"final_output": final_output}
 
     def _node_observe(self, state: MingZhuState) -> Dict:
-        """观察节点：坎观独立审查"""
+        """观察节点：坎观独立审查（v3.1 用 LLM 做深度质量审查）"""
         results = state.get("persona_results", [])
         final_output = state.get("final_output", "")
         conflicts = state.get("conflicts", [])
+        user_input = state.get("user_input", "")
 
-        # 简化版观察报告（无 LLM 时用规则）
-        report_parts = []
-        report_parts.append(f"本次调用 {len(results)} 个人格")
+        # 基础统计（规则层，永远执行）
+        stats = []
+        stats.append(f"调用 {len(results)} 个人格")
         if conflicts:
-            report_parts.append(f"检测到 {len(conflicts)} 个冲突")
+            stats.append(f"{len(conflicts)} 个冲突")
         if state.get("vetoed"):
-            report_parts.append("触发安全否决")
+            stats.append("触发安全否决")
         errors = [r for r in results if r.get("error")]
         if errors:
-            report_parts.append(f"{len(errors)} 个人格执行失败（已降级）")
+            stats.append(f"{len(errors)} 个人格降级")
+        stats_report = "；".join(stats) + "。"
 
-        return {"observer_report": "；".join(report_parts) + "。"}
+        # LLM 深度审查（坎观视角：发现盲点和质量问题）
+        llm_report = ""
+        try:
+            persona_summary = "\n".join(
+                f"- {r.get('name','')}: {r.get('content','')[:200]}"
+                for r in results if r.get("content")
+            )
+
+            system_prompt = """你是「坎观」，明烛的观察者人格（坎 ☵ 水）。
+你的职责是独立审查整个调度的质量，发现盲点，不参与执行只做批判性观察。
+
+审查维度：
+1. 目标达成度：最终输出是否真正回答了用户问题
+2. 盲点：有没有被忽略的重要角度
+3. 质量：分析深度够不够，是否停留在表面
+4. 一致性：各人格输出是否自洽
+5. 改进建议：下次怎么做得更好
+
+输出格式：2-4句话的观察报告，直接指出问题，不客套。"""
+
+            resp = self.router.generate(
+                prompt=f"""用户问题：{user_input}
+
+各人格输出摘要：
+{persona_summary}
+
+最终汇总输出：
+{final_output[:800]}
+
+冲突：{conflicts if conflicts else '无'}
+
+请给出观察报告。""",
+                system_prompt=system_prompt, scene=Scene.ANALYSIS, max_tokens=300,
+            )
+            if resp.ok:
+                llm_report = resp.content.strip()
+        except Exception as e:
+            llm_report = f"（坎观LLM审查失败：{e}）"
+
+        # 合并报告
+        full_report = stats_report
+        if llm_report:
+            full_report += "\n\n" + llm_report
+
+        return {"observer_report": full_report}
 
     def _after_safety_check(self, state: MingZhuState) -> str:
         """安全检查后的条件路由"""

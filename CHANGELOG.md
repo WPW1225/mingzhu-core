@@ -4,6 +4,46 @@
 
 ---
 
+## [3.1.0] - 2026-06-26
+
+### 重大变更：双LLM激活 + 工具集成 + 坎观LLM审查 + 仓库整理
+
+#### LLM 后端激活与优化
+- 智谱后端：从 z-ai CLI 改为直接 API 调用（urllib，更稳定更快）
+- DeepSeek 后端：激活，场景路由 SIMPLE/ROUTING→DeepSeek 省钱
+- 双后端验证通过：智谱 glm-4-plus（652ms）+ DeepSeek deepseek-v4-flash（1805ms）
+
+#### P1-4 LLM-as-a-Judge 完成
+- evaluator.py 默认接入 LLMRouter，多维度评分（honesty/humility/helpfulness/clarity/safety）
+- 保留规则评估作为快速路径和兜底
+
+#### P1-5 语义路由增强
+- 两层路由：关键词快速路由（低成本）+ LLM 语义路由（不确定时启用）
+- LLM 可判断多人格需求，限制最多3个避免 token 爆炸
+- routing_method 字段记录用了哪种路由
+
+#### 工具与人格深度集成
+- 巽风自动调 web_search：LLM 提取关键词→搜索→结果作为上下文
+- 乾断自动调 calculator：检测数学表达式→计算→结果作为上下文
+- 工具失败不影响主流程（降级处理）
+
+#### 坎观 LLM 深度审查
+- 观察节点从纯统计升级为 LLM 深度审查
+- 审查维度：目标达成度/盲点/质量/一致性/改进建议
+- 规则统计 + LLM 分析双层报告
+
+#### 统一入口（agent_system/api.py）
+- chat()：简单用法，返回字符串
+- chat_with_details()：带完整细节（人格输出/路由/冲突/观察报告）
+- 解决"该用 MingZhu.run() 还是 MingZhuGraph.invoke()"的困惑
+
+#### 仓库整理
+- 删除冗余：AGENT_INTRO.txt、AGENT_SYSTEM_PROMPT.md（与SOUL.md重复）
+- 归档 daily/ → archive/daily/
+- 清理 TODO.md：只保留明烛自身待办，删除其他项目内容
+
+---
+
 ## [3.0.0] - 2026-06-26
 
 ### 重大变更：接入 LangGraph 引擎 + 双 LLM 后端 + 工具系统
