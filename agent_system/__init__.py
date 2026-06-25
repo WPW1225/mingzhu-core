@@ -142,15 +142,28 @@ class MingZhu:
                  enable_evaluator: bool = True, enable_observer: bool = True):
         """
         Args:
-            llm_client: LLM 客户端（需要有 generate 方法）
+            llm_client: LLM 客户端（兼容旧接口，v3.1+ 建议用 api.chat() 代替）
             soul_dir: digital-twin-core 目录路径
             enable_evaluator: 是否启用质量评估器
             enable_observer: 是否启用坎观观察者
+
+        Note:
+            v3.1+ 推荐使用 agent_system.api.chat() 统一入口。
+            本类保留用于向后兼容和路由逻辑复用。
         """
         self.llm = llm_client
         self.soul_dir = Path(soul_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         self._persona_cache = {}
         self._soul_cache = None
+
+        # v3.1: 自动接入 LLMRouter（当未传 llm_client 时）
+        self._router = None
+        if llm_client is None:
+            try:
+                from .llm_backends import get_router
+                self._router = get_router()
+            except Exception:
+                pass
 
         # 质量评估器
         self.evaluator = Evaluator() if enable_evaluator else None
@@ -161,9 +174,10 @@ class MingZhu:
         # 加载配置
         self._load_soul()
 
-        logger.info(f"明烛 v2.0 初始化完成 | 八卦人格：{len(PERSONAS)}个 | "
+        logger.info(f"明烛 v3.1 初始化完成 | 八卦人格：{len(PERSONAS)}个 | "
                     f"评估器：{'启用' if self.evaluator else '禁用'} | "
-                    f"观察者：{'启用' if enable_observer else '禁用'}")
+                    f"观察者：{'启用' if enable_observer else '禁用'} | "
+                    f"LLM路由器：{'已接入' if self._router else '未接入'}")
 
     def _load_soul(self) -> str:
         """加载 SOUL 配置（从 YAML，fallback 到 SOUL.md）"""
@@ -356,7 +370,17 @@ SOUL.md 核心规则（必须遵守）：
 """
 
                 content = ""
-                if self.llm and hasattr(self.llm, 'is_enabled') and self.llm.is_enabled():
+                # v3.1: 优先用 LLMRouter（新接口），兼容旧 llm_client
+                if self._router:
+                    from .llm_backends import Scene
+                    scene = Scene.SAFETY if persona_id == "gen_shou" else Scene.ANALYSIS
+                    full_prompt = user_input if not context else f"{context}\n\n当前问题：{user_input}"
+                    resp = self._router.generate(full_prompt, system_prompt=system_prompt, scene=scene)
+                    if resp.ok:
+                        content = resp.content
+                    else:
+                        raise ValueError(f"LLM调用失败: {resp.error}")
+                elif self.llm and hasattr(self.llm, 'is_enabled') and self.llm.is_enabled():
                     result = self.llm.generate(
                         system_prompt=system_prompt,
                         user_prompt=user_input,
