@@ -248,19 +248,93 @@ class MingZhu:
 
         return sorted(triggered, key=priority_key)
 
+    # ---------- 冲突检测（P1-5）----------
+
+    # 对立信号对：(正向词, 负向词, 冲突描述)
+    _CONFLICT_PAIRS = [
+        (("建议", "推荐", "应该", "可以", "可行", "做"), ("不建议", "不推荐", "不应该", "不可行", "否决", "不做"), "行动建议对立"),
+        (("安全", "合规", "无风险"), ("不安全", "有风险", "漏洞", "违规"), "安全判断对立"),
+        (("高", "强", "好", "优"), ("低", "弱", "差", "劣"), "评估结论对立"),
+        (("是", "正确", "对"), ("否", "错误", "错"), "是非判断对立"),
+    ]
+
+    def _detect_conflicts(self, results: List[AgentResult]) -> List[str]:
+        """检测各人格输出之间的对立信号。
+
+        扫描所有人格的 content，如果两个不同人格分别出现对立词对，
+        则判定为冲突，返回冲突描述列表。
+
+        Returns:
+            冲突警告字符串列表，如 ["乾断 vs 艮守：行动建议对立（建议 vs 否决）"]
+        """
+        if len(results) < 2:
+            return []
+
+        warnings = []
+        # 收集每个人格出现的信号
+        persona_signals = {}
+        for r in results:
+            if r.error or not r.content:
+                continue
+            signals = set()
+            for pos_words, neg_words, _ in self._CONFLICT_PAIRS:
+                for w in pos_words:
+                    if w in r.content:
+                        signals.add(("pos", w))
+                for w in neg_words:
+                    if w in r.content:
+                        signals.add(("neg", w))
+            if signals:
+                persona_signals[r.name] = signals
+
+        # 两两比对
+        names = list(persona_signals.keys())
+        for i in range(len(names)):
+            for j in range(i + 1, len(names)):
+                sig_a = persona_signals[names[i]]
+                sig_b = persona_signals[names[j]]
+                # 检查是否存在对立：A有正向，B有负向（或反之）
+                a_pos = {s[1] for s in sig_a if s[0] == "pos"}
+                a_neg = {s[1] for s in sig_a if s[0] == "neg"}
+                b_pos = {s[1] for s in sig_b if s[0] == "pos"}
+                b_neg = {s[1] for s in sig_b if s[0] == "neg"}
+
+                for pos_words, neg_words, desc in self._CONFLICT_PAIRS:
+                    a_has_pos = a_pos & set(pos_words)
+                    b_has_neg = b_neg & set(neg_words)
+                    a_has_neg = a_neg & set(neg_words)
+                    b_has_pos = b_pos & set(pos_words)
+                    if (a_has_pos and b_has_neg) or (a_has_neg and b_has_pos):
+                        pos_w = (a_has_pos or b_has_pos).pop() if (a_has_pos or b_has_pos) else ""
+                        neg_w = (a_has_neg or b_has_neg).pop() if (a_has_neg or b_has_neg) else ""
+                        warnings.append(
+                            f"{names[i]} vs {names[j]}：{desc}（{pos_w} vs {neg_w}）"
+                        )
+                        break  # 每对人格每类冲突只报一次
+
+        return warnings
+
     def _execute_persona(self, persona_id: str, user_input: str,
-                         context: str = "") -> AgentResult:
-        """执行单个子人格（增强版：质量评分 + CoT + 错误处理）"""
+                         context: str = "", max_retries: int = 2) -> AgentResult:
+        """执行单个子人格（增强版：质量评分 + CoT + retry + fallback）
+
+        失败恢复策略（P1-6）：
+        - LLM 调用失败 → 最多重试 max_retries 次
+        - 重试仍失败 → fallback 到规则模式（返回基于规则的占位输出，标记 error）
+        - 非核心人格失败不中断整体流程（safe_run）
+        """
         persona_config = PERSONAS[persona_id]
         start_time = time.time()
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
 
-        # safe_run 包装
-        try:
-            persona_content = self._load_persona(persona_id)
-            soul = self._load_soul()
+        # safe_run 包装 + retry
+        last_error = None
+        for attempt in range(max_retries + 1):
+            try:
+                persona_content = self._load_persona(persona_id)
+                soul = self._load_soul()
 
-            system_prompt = f"""你是「{persona_config['name']}」，明烛数字分身的子人格之一。
+                system_prompt = f"""你是「{persona_config['name']}」，明烛数字分身的子人格之一。
 
 {persona_content}
 
@@ -281,58 +355,71 @@ SOUL.md 核心规则（必须遵守）：
 4. 如果是坎观，提供观察报告和质量评分
 """
 
-            content = ""
-            if self.llm and hasattr(self.llm, 'is_enabled') and self.llm.is_enabled():
-                result = self.llm.generate(
-                    system_prompt=system_prompt,
-                    user_prompt=user_input,
-                    temperature=0.3,
-                    max_tokens=1500,
+                content = ""
+                if self.llm and hasattr(self.llm, 'is_enabled') and self.llm.is_enabled():
+                    result = self.llm.generate(
+                        system_prompt=system_prompt,
+                        user_prompt=user_input,
+                        temperature=0.3,
+                        max_tokens=1500,
+                    )
+                    content = result.get("content", "") if result else ""
+                    if not content:
+                        raise ValueError("LLM 返回空内容")
+                else:
+                    content = (f"（{persona_config['name']} 已加载，但 LLM 未启用。"
+                              f"基于规则分析：{user_input[:100]}）")
+
+                # 解析置信度
+                vetoed = "否决" in content and persona_id == "gen_shou"
+                confidence = "中"
+                if "置信度：高" in content or "置信度: 高" in content:
+                    confidence = "高"
+                elif "置信度：低" in content or "置信度: 低" in content:
+                    confidence = "低"
+
+                # 质量评估
+                quality_score = None
+                if self.evaluator:
+                    quality_score = self.evaluator.evaluate(content, persona_id, context)
+
+                execution_time = time.time() - start_time
+
+                return AgentResult(
+                    persona=persona_id,
+                    name=persona_config["name"],
+                    icon=persona_config["icon"],
+                    content=content,
+                    confidence=confidence,
+                    vetoed=vetoed,
+                    quality_score=quality_score,
+                    reasoning_chain=system_prompt[:500],
+                    execution_time=execution_time,
+                    timestamp=timestamp,
                 )
-                content = result.get("content", "") if result else "（LLM 无响应）"
-            else:
-                content = (f"（{persona_config['name']} 已加载，但 LLM 未启用。"
-                          f"基于规则分析：{user_input[:100]}）")
 
-            # 解析置信度
-            vetoed = "否决" in content and persona_id == "gen_shou"
-            confidence = "中"
-            if "置信度：高" in content or "置信度: 高" in content:
-                confidence = "高"
-            elif "置信度：低" in content or "置信度: 低" in content:
-                confidence = "低"
+            except Exception as e:
+                last_error = e
+                logger.warning(
+                    f"{persona_config['name']} 第{attempt+1}/{max_retries+1}次执行失败: {e}"
+                )
+                if attempt < max_retries:
+                    time.sleep(0.5 * (attempt + 1))  # 指数退避
+                continue
 
-            # 质量评估
-            quality_score = None
-            if self.evaluator:
-                quality_score = self.evaluator.evaluate(content, persona_id, context)
-
-            execution_time = time.time() - start_time
-
-            return AgentResult(
-                persona=persona_id,
-                name=persona_config["name"],
-                icon=persona_config["icon"],
-                content=content,
-                confidence=confidence,
-                vetoed=vetoed,
-                quality_score=quality_score,
-                reasoning_chain=system_prompt[:500],  # 记录推理链摘要
-                execution_time=execution_time,
-                timestamp=timestamp,
-            )
-
-        except Exception as e:
-            logger.error(f"{persona_config['name']} 执行失败: {e}")
-            return AgentResult(
-                persona=persona_id,
-                name=persona_config["name"],
-                icon=persona_config["icon"],
-                content="",
-                error=str(e),
-                execution_time=time.time() - start_time,
-                timestamp=timestamp,
-            )
+        # 所有重试失败 → fallback
+        logger.error(f"{persona_config['name']} {max_retries+1}次重试均失败，启用 fallback")
+        return AgentResult(
+            persona=persona_id,
+            name=persona_config["name"],
+            icon=persona_config["icon"],
+            content=f"（{persona_config['name']} 执行失败，已降级。基于触发的关键词做最小响应："
+                    f"{user_input[:80]}）",
+            confidence="低",
+            error=f"重试{max_retries+1}次后失败：{last_error}",
+            execution_time=time.time() - start_time,
+            timestamp=timestamp,
+        )
 
     def run(self, user_input: str, context: str = "") -> Dict:
         """主入口：调度子人格，返回汇总结果（增强版）
@@ -384,17 +471,24 @@ SOUL.md 核心规则（必须遵守）：
                            for r in results if r.reasoning_chain],
             }
 
-        # 4. 离明汇总
+        # 4. 离明汇总（含冲突检测 P1-5）
         other_outputs = "\n\n---\n\n".join(
             f"{r.icon} {r.name}（置信度：{r.confidence}）：\n{r.content}"
             for r in results
             if r.content and not r.error
         )
 
+        # 冲突检测：扫描各人格输出中的对立信号
+        conflict_warnings = self._detect_conflicts(results)
+
         if "li_ming" in persona_ids:
+            conflict_context = ""
+            if conflict_warnings:
+                conflict_context = f"\n\n⚠️ 检测到人格间冲突，请在汇总时优先解决：\n" + \
+                                   "\n".join(f"- {w}" for w in conflict_warnings)
             li_ming_result = self._execute_persona(
                 "li_ming", user_input,
-                context=f"其他人格的输出：\n{other_outputs}",
+                context=f"其他人格的输出：\n{other_outputs}{conflict_context}",
             )
             results.append(li_ming_result)
             final_output = li_ming_result.content

@@ -26,6 +26,7 @@ digital-twin-core/
 │   ├── test_capability.py     # 能力基准测试
 │   ├── test_adversarial.py    # 对抗性测试
 │   ├── test_cognitive_cycle.py # 认知循环测试
+│   ├── test_robustness.py     # 健壮性测试（漂移/重试/冲突）
 │   └── run_all_tests.py       # 测试运行器
 ├── SOUL.md                    # 系统提示词（引用配置）
 ├── ASTRO.md                   # 西方占星数据
@@ -173,5 +174,6 @@ python3 tests/run_all_tests.py
 - 能力基准测试（10个用例，100%通过）
 - 对抗性测试（10个用例，100%通过）
 - 认知循环测试（15个检查项，100%通过）
+- 健壮性测试（13个检查项，100%通过）
 
 CI/CD 会自动运行这些测试，未通过不可合并。

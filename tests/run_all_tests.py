@@ -99,6 +99,21 @@ def run_all_tests():
         print(f"❌ 认知循环测试出错：{e}")
     print()
 
+    # 6. 健壮性测试
+    print(">>> 运行健壮性测试...")
+    try:
+        from tests.test_robustness import test_robustness
+        passed, total = test_robustness()
+        results["robustness"] = {
+            "passed": passed,
+            "total": total,
+            "status": "PASS" if passed == total else "FAIL",
+        }
+    except Exception as e:
+        results["robustness"] = {"status": "ERROR", "error": str(e)}
+        print(f"❌ 健壮性测试出错：{e}")
+    print()
+
     # 汇总
     duration = time.time() - start_time
     print("=" * 70)

@@ -26,9 +26,10 @@
 """
 import time
 import json
+import re
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable
+from typing import Dict, List, Optional, Any, Callable, Set
 
 from .config_loader import config as soul_config
 
@@ -185,6 +186,115 @@ class CognitiveCycle:
 
         return warnings
 
+    # ---------- 目标漂移检测 ----------
+
+    # 中文停用词，漂移检测时忽略
+    _DRIFT_STOPWORDS: Set[str] = {
+        "的", "了", "和", "是", "在", "我", "有", "也", "就", "都", "与", "及", "或",
+        "一个", "这个", "那个", "我们", "你们", "他们", "它", "他", "她", "这", "那",
+        "要", "会", "能", "可", "可以", "应该", "需要", "进行", "通过", "使用", "对",
+        "把", "被", "让", "使", "给", "为", "以", "于", "从", "到", "向", "上", "下",
+        "中", "里", "等", "并", "但", "而", "如", "如果", "因为", "所以", "虽然", "但是",
+    }
+
+    @staticmethod
+    def _tokenize_zh(text: str) -> Set[str]:
+        """简易中文分词：按2-4字滑窗提取词，过滤停用词和单字。"""
+        if not text:
+            return set()
+        # 提取中文词组（2-4字）和英文单词
+        tokens = set()
+        # 中文2-4字滑窗
+        zh_chars = re.findall(r'[\u4e00-\u9fff]+', text)
+        for seg in zh_chars:
+            for n in (2, 3, 4):
+                for i in range(len(seg) - n + 1):
+                    w = seg[i:i + n]
+                    if w not in CognitiveCycle._DRIFT_STOPWORDS:
+                        tokens.add(w)
+        # 英文单词
+        en_words = re.findall(r'[a-zA-Z_]{3,}', text.lower())
+        tokens.update(en_words)
+        return tokens
+
+    def detect_goal_drift(
+        self,
+        goal: str,
+        output: str,
+        threshold: float = 0.3,
+    ) -> Dict[str, Any]:
+        """
+        检测执行产出是否偏离原始目标（目标漂移检测）。
+
+        原理：提取目标关键词集合 G 和产出关键词集合 O，
+        以"目标关键词在产出中的覆盖率"为主指标：
+        coverage = |G ∩ O| / |G|
+        coverage 低于阈值则判定为漂移（产出没覆盖到目标的核心内容）。
+        同时计算 Jaccard 相似度作为辅助参考。
+
+        参数：
+            goal: 预见阶段确定的目标（goal_clarity 字段）
+            output: 执行阶段的产出（output 字段）
+            threshold: 漂移阈值，覆盖率低于此值判定为漂移（默认0.3）
+
+        返回：
+            {
+                "drifted": bool,          # 是否漂移
+                "coverage": float,        # 目标关键词覆盖率（主指标）
+                "similarity": float,      # Jaccard 相似度（辅助）
+                "threshold": float,       # 阈值
+                "goal_keywords": list,    # 目标关键词
+                "output_keywords": list,  # 产出关键词
+                "matched": list,          # 匹配的关键词
+                "missing": list,          # 目标中有但产出中没有的
+                "warning": str,           # 警告信息（漂移时）
+            }
+        """
+        goal_tokens = self._tokenize_zh(goal or "")
+        output_tokens = self._tokenize_zh(output or "")
+
+        if not goal_tokens:
+            return {
+                "drifted": False,
+                "coverage": 1.0,
+                "similarity": 1.0,
+                "threshold": threshold,
+                "goal_keywords": [],
+                "output_keywords": list(output_tokens),
+                "matched": [],
+                "missing": [],
+                "warning": "",
+            }
+
+        intersection = goal_tokens & output_tokens
+        union = goal_tokens | output_tokens
+        # 覆盖率：目标关键词中有多少出现在产出里（主指标）
+        coverage = len(intersection) / len(goal_tokens) if goal_tokens else 1.0
+        # Jaccard：辅助参考
+        similarity = len(intersection) / len(union) if union else 1.0
+        missing = goal_tokens - output_tokens
+        drifted = coverage < threshold
+
+        warning = ""
+        if drifted:
+            warning = (
+                f"目标漂移警告：执行产出仅覆盖 {coverage:.0%} 的目标关键词"
+                f"（阈值 {threshold:.0%}），可能偏离了目标。"
+                f"目标中未覆盖的关键词：{', '.join(sorted(missing)[:10])}"
+            )
+
+        return {
+            "drifted": drifted,
+            "coverage": round(coverage, 4),
+            "similarity": round(similarity, 4),
+            "threshold": threshold,
+            "goal_keywords": sorted(goal_tokens),
+            "output_keywords": sorted(output_tokens),
+            "matched": sorted(intersection),
+            "missing": sorted(missing),
+            "warning": warning,
+        }
+
     # ---------- 三阶段执行 ----------
 
     def _run_forethought(self, fn: Optional[Callable], result: CycleResult) -> PhaseRecord:
@@ -237,6 +347,17 @@ class CognitiveCycle:
         answers = fn() or {}
         rec.answers = answers
         rec.completed = True
+
+        # 目标漂移检测：对比执行产出与预见阶段的目标
+        goal = result.forethought.answers.get("goal_clarity", "")
+        output = answers.get("output", "")
+        if goal and output:
+            drift = self.detect_goal_drift(goal, output)
+            rec.answers["_goal_drift"] = drift
+            if drift["drifted"]:
+                rec.warnings.append(drift["warning"])
+                logger.warning(drift["warning"])
+
         rec.finished_at = time.strftime("%Y-%m-%d %H:%M:%S")
         return rec
 

@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-06-25 17:21:54",
-  "duration": 0.14458250999450684,
+  "timestamp": "2026-06-25 17:31:21",
+  "duration": 2.147907257080078,
   "results": {
     "red_lines": {
       "passed": 16,
@@ -27,6 +27,11 @@
     "cognitive_cycle": {
       "passed": 15,
       "total": 15,
+      "status": "PASS"
+    },
+    "robustness": {
+      "passed": 13,
+      "total": 13,
       "status": "PASS"
     }
   },
