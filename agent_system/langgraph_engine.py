@@ -167,7 +167,11 @@ class MingZhuGraph:
         }
 
     def _node_execute_personas(self, state: MingZhuState) -> Dict:
-        """执行节点：并行调用各子人格（真正调用 LLM + 工具集成）"""
+        """执行节点：调用各子人格（v3.3 顺序协作，后执行者能看到先执行者的输出）
+
+        改进：从纯并行改为顺序协作——每个人格执行时，能看到之前人格的输出摘要，
+        可以引用、补充或质疑。这是"人格间消息传递"的轻量实现。
+        """
         persona_ids = state.get("persona_ids", [])
         user_input = state.get("user_input", "")
         context = state.get("context", "")
@@ -178,6 +182,8 @@ class MingZhuGraph:
             context = (context + "\n\n" + tool_context).strip()
 
         results = []
+        prior_outputs = []  # 已执行人格的输出摘要（供后续人格参考）
+
         for pid in persona_ids:
             persona_cfg = PERSONAS.get(pid, {})
             persona_name = persona_cfg.get("name", pid)
@@ -194,10 +200,16 @@ class MingZhuGraph:
                 })
                 continue
 
-            # 构造系统提示词
+            # 构造系统提示词（含之前人格的输出，实现协作）
+            prior_context = ""
+            if prior_outputs:
+                prior_context = "\n\n【其他人格已给出的分析（你可引用/补充/质疑）】\n" + \
+                                "\n---\n".join(prior_outputs)
+
             system_prompt = f"""你是「{persona_name}」，明烛数字分身的子人格。
 
 {persona_content}
+{prior_context}
 
 请以「{persona_name}」的视角回答用户问题。输出格式：
 1. 分析/建议内容
@@ -208,10 +220,9 @@ class MingZhuGraph:
 
             # 真正调用 LLM
             scene = Scene.SAFETY if pid == "gen_shou" else Scene.ANALYSIS
+            full_prompt = user_input if not context else f"{context}\n\n当前问题：{user_input}"
             resp = self.router.generate(
-                user_input if not context else f"{context}\n\n当前问题：{user_input}",
-                system_prompt=system_prompt,
-                scene=scene,
+                full_prompt, system_prompt=system_prompt, scene=scene,
             )
 
             content = resp.content if resp.ok else f"（{persona_name} 调用失败：{resp.error}）"
@@ -229,44 +240,74 @@ class MingZhuGraph:
                 "model": resp.model, "backend": resp.backend,
             })
 
+            # 收集输出摘要供后续人格参考（限制长度防 token 爆炸）
+            prior_outputs.append(f"{persona_name}: {content[:300]}")
+
         return {"persona_results": results}
 
     def _maybe_call_tools(self, persona_ids: List[str], user_input: str) -> str:
-        """工具集成：根据人格和输入，自动调用合适的工具，返回工具结果作为上下文。
+        """工具集成：根据人格配置的 tools 字段，自动调用合适的工具。
 
-        这是"角色扮演→真能做"的关键：巽风真的能搜，乾断真的能算。
+        v3.3 改进：从 persona yaml 读取 tools 绑定，不再硬编码。
+        支持的工具：web_search / calculator / code_execute / file_read
         """
         tool_context_parts = []
 
         try:
             from .tools import get_registry
+            from .config_loader import config as soul_config
             registry = get_registry()
 
-            # 巽风（搜索调研）：提取搜索词，调用 web_search
-            if "xun_feng" in persona_ids and len(user_input) > 10:
-                # 用 LLM 提取搜索关键词（轻量调用）
-                kw_resp = self.router.generate(
-                    prompt=f"从以下用户输入中提取1个最核心的搜索关键词（只返回关键词，不要其他内容）：\n{user_input}",
-                    scene=Scene.ROUTING, max_tokens=20,
-                )
-                if kw_resp.ok and kw_resp.content.strip():
-                    keyword = kw_resp.content.strip().strip('"\'""')
-                    # 限制关键词长度，防止注入
-                    if 2 <= len(keyword) <= 30:
-                        result = registry.call("web_search", query=keyword, num=3)
-                        if result.success and result.output:
-                            tool_context_parts.append(f"[巽风搜索结果·{keyword}]：\n{result.output[:800]}")
+            for pid in persona_ids:
+                # 从配置读取该人格绑定的工具
+                persona_cfg = soul_config.personas.get(pid, {})
+                bound_tools = persona_cfg.get("tools", []) if persona_cfg else []
 
-            # 乾断（逻辑决策）：检测到计算表达式时调用 calculator
-            if "qian_duan" in persona_ids:
-                import re
-                # 检测数学表达式（如 "2*15+30" "100/4" "2**10"）
-                calc_match = re.search(r'(\d+(?:\.\d+)?\s*[*+\-/^]+\s*\d+(?:\.\d+)?(?:\s*[*+\-/^]+\s*\d+(?:\.\d+)?)*)', user_input)
-                if calc_match:
-                    expr = calc_match.group(1).replace('^', '**')
-                    result = registry.call("calculator", expression=expr)
-                    if result.success:
-                        tool_context_parts.append(f"[乾断计算结果·{expr}]：{result.output}")
+                for tool_name in bound_tools:
+                    result = None
+                    if tool_name == "web_search" and len(user_input) > 10:
+                        # 巽风：LLM 提取关键词
+                        kw_resp = self.router.generate(
+                            prompt=f"从以下用户输入提取1个最核心搜索关键词(只返回关键词):\n{user_input}",
+                            scene=Scene.ROUTING, max_tokens=20,
+                        )
+                        if kw_resp.ok:
+                            keyword = kw_resp.content.strip().strip('"\'""')
+                            if 2 <= len(keyword) <= 30:
+                                result = registry.call("web_search", query=keyword, num=3)
+                                if result.success:
+                                    tool_context_parts.append(f"[巽风搜索·{keyword}]:\n{result.output[:800]}")
+
+                    elif tool_name == "calculator":
+                        import re
+                        calc_match = re.search(r'(\d+(?:\.\d+)?\s*[*+\-/^]+\s*\d+(?:\.\d+)?(?:\s*[*+\-/^]+\s*\d+(?:\.\d+)?)*)', user_input)
+                        if calc_match:
+                            expr = calc_match.group(1).replace('^', '**')
+                            result = registry.call("calculator", expression=expr)
+                            if result.success:
+                                tool_context_parts.append(f"[乾断计算·{expr}]: {result.output}")
+
+                    elif tool_name == "code_execute":
+                        # 震造/艮守：检测代码块时执行验证
+                        import re
+                        code_match = re.search(r'\`\`\`(?:python)?\n(.*?)\n\`\`\`', user_input, re.DOTALL)
+                        if code_match:
+                            code = code_match.group(1)[:2000]  # 限制长度
+                            result = registry.call("code_execute", code=code)
+                            if result.success:
+                                tool_context_parts.append(f"[代码执行结果]:\n{result.output[:500]}")
+                            elif result.error:
+                                tool_context_parts.append(f"[代码执行失败·{pid}]: {result.error[:200]}")
+
+                    elif tool_name == "file_read":
+                        # 坤载/震造：检测文件路径时读取
+                        import re
+                        path_match = re.search(r'(?:文件|读取|查看|分析)\s*[「「]?(?:\./)?([\w/]+\.\w+)', user_input)
+                        if path_match:
+                            fpath = path_match.group(1)
+                            result = registry.call("file_read", path=fpath)
+                            if result.success:
+                                tool_context_parts.append(f"[文件内容·{fpath}]:\n{result.output[:800]}")
 
         except Exception as e:
             logger.debug(f"工具调用失败（不影响主流程）: {e}")

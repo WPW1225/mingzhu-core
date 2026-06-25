@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mingzhu"
+version = "3.3.0"
+description = "明烛 - 数字分身 Agent 系统（丁火烛照，照亮未知）"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "WPW1225"}]
+
+dependencies = [
+    "pyyaml>=6.0",
+    "langgraph>=0.2",
+    "langchain-core>=0.3",
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
+    "requests>=2.28",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "pytest-cov"]
+
+[project.scripts]
+mingzhu = "mingzhu_cli:main"
+
+[tool.setuptools]
+packages = ["agent_system"]
+py-modules = ["mingzhu_cli"]
+
+[tool.setuptools.package-data]
+agent_system = ["*.yaml", "*.md"]

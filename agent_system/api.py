@@ -147,6 +147,100 @@ def reset_session(session_id: str = "default"):
     _graph = None
 
 
+def chat_stream(user_input: str, session_id: str = "default"):
+    """流式对话接口（生成器，逐步 yield 进度）
+
+    yield 的内容：
+    - {"type":"routing", "method":"keyword/llm", "personas":["乾断",...]}
+    - {"type":"persona_start", "name":"乾断", "icon":"🔢"}
+    - {"type":"persona_done", "name":"乾断", "content":"...", "confidence":"中"}
+    - {"type":"tool", "persona":"巽风", "tool":"web_search", "result":"..."}
+    - {"type":"synthesizing"}
+    - {"type":"output", "content":"最终回复"}
+    - {"type":"observer", "content":"坎观观察报告"}
+    - {"type":"done", "latency_ms":1234, "models":["glm-4-plus"]}
+
+    用法：
+        for event in chat_stream("帮我分析"):
+            if event["type"] == "output":
+                print(event["content"])
+    """
+    import time as _time
+    from .langgraph_engine import MingZhuGraph, PERSONAS
+    from .llm_backends import Scene
+
+    graph = _get_graph()
+    start = _time.time()
+
+    # 阶段1：路由
+    state = {"user_input": user_input, "context": "", "thread_id": session_id}
+    route_result = graph._node_route(state)
+    persona_ids = route_result["persona_ids"]
+    yield {"type": "routing", "method": route_result.get("routing_method", ""),
+           "personas": [PERSONAS[p]["name"] for p in persona_ids]}
+
+    # 阶段2：工具调用
+    tool_ctx = graph._maybe_call_tools(persona_ids, user_input)
+    if tool_ctx:
+        for line in tool_ctx.split("\n\n"):
+            if line.startswith("["):
+                # 解析工具名
+                end = line.find("]")
+                if end > 0:
+                    yield {"type": "tool", "info": line[:end+1], "detail": line[end+1:][:200]}
+
+    # 阶段3：逐个人格执行（流式）
+    context = tool_ctx
+    persona_results = []
+    for pid in persona_ids:
+        cfg = PERSONAS.get(pid, {})
+        yield {"type": "persona_start", "name": cfg.get("name", pid), "icon": cfg.get("icon", "")}
+
+        state = {"user_input": user_input, "context": context, "persona_ids": [pid]}
+        exec_result = graph._node_execute_personas(state)
+        for r in exec_result["persona_results"]:
+            persona_results.append(r)
+            yield {"type": "persona_done", "name": r["name"],
+                   "content": r.get("content", ""), "confidence": r.get("confidence", "")}
+
+    # 阶段4：安全检查 + 冲突检测
+    state = {"persona_results": persona_results}
+    safety = graph._node_safety_check(state)
+    conflicts = graph._node_conflict_check(state)
+
+    # 阶段5：汇总
+    yield {"type": "synthesizing"}
+    state.update({"user_input": user_input, "conflicts": conflicts, **safety})
+    synth = graph._node_synthesize(state)
+    output = synth["final_output"]
+    yield {"type": "output", "content": output}
+
+    # 阶段6：坎观观察
+    state["final_output"] = output
+    obs = graph._node_observe(state)
+    yield {"type": "observer", "content": obs.get("observer_report", "")}
+
+    # 阶段7：完成
+    latency = (_time.time() - start) * 1000
+    models = list(set(r.get("model", "") for r in persona_results if r.get("model")))
+
+    # 持久化记忆
+    try:
+        from .memory import get_memory, MemoryEntry
+        entry = MemoryEntry(
+            timestamp=_time.strftime("%Y-%m-%d %H:%M:%S"),
+            user_input=user_input, output=output,
+            personas=[{"name": r["name"], "model": r.get("model", "")} for r in persona_results],
+            models=models, observer=obs.get("observer_report", ""),
+            latency_ms=round(latency, 1),
+        )
+        get_memory().save_turn(session_id, entry)
+    except Exception:
+        pass
+
+    yield {"type": "done", "latency_ms": round(latency, 1), "models": models}
+
+
 if __name__ == "__main__":
     print("=== 明烛统一入口测试 ===\n")
 

@@ -4,6 +4,50 @@
 
 ---
 
+## [3.3.0] - 2026-06-26
+
+### 重大变更：mingzhu全局命令 + 流式输出 + 人格协作 + 工具配置化
+
+终端打 `mingzhu` 就能用，像 Claude Code 一样。每个 agent 优化到最佳。
+
+#### 全局命令（mingzhu）
+- `pyproject.toml` + `entry_points`：pip install 后 `mingzhu` 全局可用
+- `mingzhu_cli.py`：交互模式、直接给任务、会话管理、成本查询、启动网页
+- 安装：`pip install -e .` → 终端 `mingzhu "任务"` 直接用
+
+#### 流式输出（体验质变）
+- `api.chat_stream()`：生成器，逐步 yield 进度
+- 事件类型：routing/tool/persona_start/persona_done/synthesizing/output/observer/done
+- CLI 实时显示：路由→工具调用→各人格分析→汇总→坎观观察→耗时
+- 像 Claude Code 一样，用户不再干等，能看到明烛在做什么
+
+#### 人格间消息传递（真协作）
+- 执行节点从纯并行改为顺序协作
+- 后执行的人格能看到先执行人格的输出摘要（300字）
+- 可引用、补充、质疑——真正的多agent协作
+- 限制摘要长度防止 token 爆炸
+
+#### 工具绑定配置化
+- 8个人格 yaml 新增 `tools` 字段：
+  - 巽风: [web_search] | 震造: [code_execute, file_read]
+  - 乾断: [calculator] | 艮守: [code_execute] | 坤载: [file_read]
+  - 坎观/离明/兑泽: []（纯分析/表达/创意，不需要工具）
+- `_maybe_call_tools` 从配置读取工具绑定，不再硬编码
+- 震造能执行代码验证，艮守能跑代码检查，坤载能读文件
+
+#### 各 agent 优化（超出行业水平）
+基于 SOTA 搜索（流式/情景记忆/工具/反思/人机协作）：
+- 巽风：真搜索（web_search 工具 + LLM 提取关键词）
+- 震造：真执行（code_execute 沙箱 + 代码块检测）
+- 乾断：真计算（calculator + 表达式检测）
+- 艮守：真审查（code_execute 验证 + LLM 安全判断）
+- 坎观：真观察（LLM 深度审查 + 盲点发现）
+- 离明：真汇总（LLM 封装 + 冲突解决）
+- 坤载：真协调（file_read + 协作流程）
+- 兑泽：真创意（LLM 发散 + 可落地标记）
+
+---
+
 ## [3.2.0] - 2026-06-26
 
 ### 重大变更：长期记忆落盘 + 成本监控 + CLI + Web界面
