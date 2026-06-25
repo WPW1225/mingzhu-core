@@ -50,7 +50,33 @@ digital-twin-core/
 
 ## 使用方式
 
-### 程序化使用（v3.1 推荐）
+### 方式一：Web 网页（最直观）
+
+```bash
+python web_app.py
+```
+浏览器访问 `http://localhost:8000`，聊天界面，支持会话切换、人格详情、成本查看。
+
+### 方式二：CLI 命令行
+
+```bash
+# 交互模式
+python cli.py
+
+# 单次提问（带详情）
+python cli.py "帮我分析这段代码" -v
+
+# 指定会话
+python cli.py "继续刚才的" --session work
+
+# 查看所有会话
+python cli.py --sessions
+
+# 查看成本
+python cli.py --cost
+```
+
+### 方式三：Python 代码
 
 ```python
 from agent_system.api import chat, chat_with_details
@@ -58,12 +84,18 @@ from agent_system.api import chat, chat_with_details
 # 简单对话
 reply = chat("帮我分析这段代码的安全性")
 
-# 带会话记忆 + 完整细节
+# 带完整细节（自动持久化记忆）
 result = chat_with_details("帮我分析", session_id="user-1")
 print(result["output"])        # 最终回复
 print(result["observer"])      # 坎观观察报告
 print(result["personas"])      # 各人格输出
 print(result["models"])        # 使用的模型
+
+# 查询历史
+from agent_system.api import get_history, list_sessions, cost_summary
+print(list_sessions())         # 所有会话
+print(get_history("user-1"))   # 某会话历史
+print(cost_summary())          # 成本统计
 ```
 
 ### LLM 后端配置

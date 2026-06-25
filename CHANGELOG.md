@@ -4,6 +4,41 @@
 
 ---
 
+## [3.2.0] - 2026-06-26
+
+### 重大变更：长期记忆落盘 + 成本监控 + CLI + Web界面
+
+让用户脱离AI对话也能直接用明烛——CLI命令行 + Web网页两种方式。
+
+#### 长期记忆持久化（agent_system/memory.py）
+- MemorySaver 内存态 → JSON 文件持久化（memory_store/<session_id>.json）
+- 重启不丢失，每会话最多保留50轮
+- 支持查询历史会话列表、加载历史、清除会话
+
+#### 成本监控（agent_system/cost_monitor.py）
+- 记录每次 LLM 调用的 token 用量和费用（cost_log.json）
+- 定价表：智谱glm-4-plus(0.05元/千token)、DeepSeek(0.001-0.002元/千token)
+- 按后端/场景统计，可查累计费用
+- 集成到 LLMRouter，自动记录
+
+#### CLI 命令行（cli.py）
+- 交互模式：`python cli.py` 进入终端对话
+- 单次提问：`python cli.py "问题" -v` 显示详细信息
+- 会话管理：`--session ID`、`--sessions`、`--history ID`
+- 成本查询：`--cost`
+
+#### Web 网页（web_app.py）
+- FastAPI + 单页 HTML，一个文件搞定
+- 聊天界面：带会话切换、人格详情、坎观观察报告
+- 成本面板：实时查看累计费用
+- 启动：`python web_app.py` → 浏览器访问 localhost:8000
+
+#### api.py 增强
+- chat_with_details 自动持久化记忆
+- 新增 get_history / list_sessions / clear_session / cost_summary
+
+---
+
 ## [3.1.0] - 2026-06-26
 
 ### 重大变更：双LLM激活 + 工具集成 + 坎观LLM审查 + 仓库整理

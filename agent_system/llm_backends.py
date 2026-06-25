@@ -275,6 +275,16 @@ class LLMRouter:
             "error": resp.error,
         })
 
+        # v3.2: 成本监控（记录到文件，可查询累计费用）
+        try:
+            from .cost_monitor import get_monitor
+            get_monitor().record(
+                backend=backend_name, model=resp.model, scene=scene.value,
+                usage=resp.usage, latency_ms=resp.latency_ms, ok=resp.ok,
+            )
+        except Exception:
+            pass  # 成本监控失败不影响主流程
+
         if not resp.ok:
             logger.warning("LLM 调用失败 scene=%s backend=%s: %s",
                           scene.value, backend_name, resp.error)
