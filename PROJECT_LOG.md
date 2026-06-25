@@ -1154,3 +1154,73 @@ curl http://localhost:8000/health
 4. **P1-5 语义路由**：LLM 判断人格路由，替代关键词匹配
 5. **元元认知**：反思有效性校验器，检测"反思是否真的找出了问题"
 
+---
+
+### 2026-06-26 v3.0 接入 LangGraph 引擎 + 双 LLM 后端 + 工具系统
+
+#### 背景
+
+用户确认用 LangGraph，LLM 用智谱（清言），并提供了 DeepSeek key（更便宜）。用户问"api可不可以用deepseek的"——这是成本优化需求。
+
+#### 预见阶段
+
+严格执行预见4问：
+- 目标：从"角色扮演"升级为"真能调工具、有记忆、能评估"的真 agent
+- 复杂度：复杂协作（框架选型+架构适配+代码实现+测试）
+- 信息充分性：按 SEARCH_PROTOCOL.md 搜了 LangGraph vs CrewAI 对比，确认 LangGraph 2026生产#1
+- 人格路由：坎观（分析框架）、震创（实现）、坤载（协调）、艮守（安全审查key）
+
+**安全事件**：用户把 DeepSeek API key 直接贴在对话里。触发艮守红线 RL008（不存储敏感信息）。处理：①不写入任何代码/配置；②建议用户轮换key；③用环境变量引用。
+
+#### 三段式复盘
+
+**一、事实复盘**
+
+完成 v3.0：
+- 框架选型：基于搜索选定 LangGraph（CrewAI 的 Role 模型与八卦体系互斥）
+- `agent_system/llm_backends.py`：双后端抽象层（智谱+DeepSeek），场景路由，失败降级
+- `agent_system/langgraph_engine.py`：状态图引擎（route→execute→safety→conflict→synthesize→observe）
+- `agent_system/tools.py`：工具系统（web_search/calculator/code_execute/file_read），安全沙箱
+- `tests/test_v3_integration.py`：14个检查项
+- 7套件全部通过（ALL PASS），真实 LLM 调用验证通过
+
+**DeepSeek key 问题**：用户提供的 key 验证返回"Authentication Fails, invalid"。已告知用户 key 无效，需重新获取。架构上 DeepSeek 后端已写好，设置环境变量即可激活，不阻塞开发。
+
+**二、思维复盘**
+
+关键决策：**框架服从明烛，不是明烛服从框架**。LangGraph 只做执行层（状态管理/工具调用/流程编排），灵魂层（SOUL/八卦/命理/认知循环）原封不动保留为明烛配置。这个决策避免了"被框架绑架"的风险。
+
+技术盲点：初版 `_node_execute_personas` 复用了 `self.mz._execute_persona`（无LLM模式），导致测试时人格输出都是"LLM未启用"。重写为直接调用 LLM router 后才真正生效。教训：**集成新组件时，要验证数据流真的走通了，不能只看流程跑通**。
+
+测试中观察到 LLM API 限流（"Failed to make API request"），但 retry 机制生效，最终成功。这验证了 v2.2 的 retry+fallback 设计价值。
+
+**三、迭代复盘**
+
+教训提炼：
+1. **API key 绝不硬编码**：用户贴在对话里的 key 视为已泄露，必须轮换。架构上只从环境变量读。
+2. **框架选型要搜最新对比**：不能凭记忆。本次搜索发现 LangGraph 2026生产#1，CrewAI 有迁移重写风险，避免踩坑。
+3. **集成要验证数据流**：流程跑通≠功能生效。要检查 LLM 是否真被调用、工具是否真执行。
+4. **双后端设计要降级**：DeepSeek 不可用时自动降级到智谱，保证可用性。
+5. **安全沙箱必须有**：code_execute 拦截了 import os，防止恶意代码。工具系统不能裸奔。
+
+#### 评估指标变化
+
+| 指标 | v2.2 | v3.0 |
+|------|------|------|
+| 执行引擎 | 自研串行 | LangGraph 状态图 |
+| LLM 后端 | 无（规则模式） | 双后端（智谱+DeepSeek） |
+| 工具调用 | 无 | 4个工具（search/calc/code/file） |
+| 多轮记忆 | 无 | LangGraph MemorySaver + thread_id |
+| 失败恢复 | retry+fallback | + LangGraph checkpoint |
+| 真实LLM调用 | 无 | 是（glm-4-plus） |
+| 测试套件数 | 6 | 7 |
+| v3集成测试 | 0 | 14项（100%通过） |
+
+#### 下一步
+
+1. **P1-4 LLM-as-a-Judge**：评估器接入真实 LLM，替代正则（基础设施已就绪）
+2. **P1-5 语义路由**：LLM 判断人格路由（基础设施已就绪）
+3. **DeepSeek 激活**：用户提供有效 key 后设置环境变量
+4. **工具与人格深度集成**：巽风自动调 web_search，震造自动调 code_execute
+5. **元元认知**：反思有效性校验器
+

@@ -4,6 +4,69 @@
 
 ---
 
+## [3.0.0] - 2026-06-26
+
+### 重大变更：接入 LangGraph 引擎 + 双 LLM 后端 + 工具系统
+
+从"角色扮演"升级为"真能调工具、有记忆、能评估"的真 agent。
+基于 LangGraph 状态图引擎重构执行层，灵魂层（SOUL/八卦/命理/认知循环）原封不动。
+
+#### 框架选型（基于搜索）
+- 对比 LangGraph / CrewAI / AutoGen / OpenAI Agents SDK / Pydantic AI / LlamaIndex
+- **选定 LangGraph**：2026生产就绪度#1，状态图最灵活，原生记忆/恢复，不绑架架构
+- 关键依据：CloudRaft 2026评测"团队在CrewAI上花几个月撞限制后重写迁移到LangGraph"
+- CrewAI 的 Role-Goal-Backstory 与明烛八卦体系互斥，不采用
+
+#### LLM 后端抽象层（agent_system/llm_backends.py）
+- 双后端：智谱 GLM（默认可用）+ DeepSeek（更便宜，待激活）
+- 场景路由：SIMPLE/ROUTING→DeepSeek省钱，ANALYSIS/SAFETY/JUDGE/CREATIVE→GLM质量优先
+- 统一接口：所有后端实现 generate()，上层无感切换
+- 安全：API key 只从环境变量读，绝不硬编码
+- 失败降级：DeepSeek不可用时自动降级到智谱
+- 调用日志：记录每次调用的场景/后端/模型/延迟/token/错误
+
+#### LangGraph 引擎（agent_system/langgraph_engine.py）
+- 状态图模型：route→execute→safety_check→conflict_check→synthesize→observe→END
+- 原生多轮记忆：MemorySaver + thread_id，跨调用状态保持
+- 原生失败恢复：checkpoint 机制
+- 真实 LLM 调用：每个子人格节点真正调用 LLM（非规则模式）
+- 艮守一票否决：safety_check 节点检测否决，条件边路由
+- 冲突检测：conflict_check 节点扫描对立信号
+
+#### 工具系统（agent_system/tools.py）—— P0-1 完成
+- ToolRegistry 注册制：统一管理，子人格按需调用
+- 4个基础工具：
+  - web_search：网页搜索（巽风用，通过 z-ai SDK）
+  - calculator：数学计算（乾断用，安全eval）
+  - code_execute：代码执行（震造用，沙箱禁止IO和系统调用）
+  - file_read：文件读取（坤载用，限制5KB）
+- 安全沙箱：code_execute 拦截 import os / subprocess / open 等
+- 失败降级：工具调用失败返回结构化错误，不中断流程
+
+#### 评估与测试
+- 新增 `tests/test_v3_integration.py`：14个检查项
+  - LLM 后端：4项（智谱可用/双后端状态/场景路由/调用日志）
+  - 工具系统：5项（calculator/code_execute/安全拦截/file_read/工具列表）
+  - LangGraph 引擎：5项（端到端/否决/多轮记忆/路由/真实LLM调用）
+- 集成到 `run_all_tests.py`：测试套件从6个增至7个
+- 全部测试通过率：100%（7套件）
+
+### 核心改进
+
+| 诊断问题 | v3.0 解决方案 |
+|----------|--------------|
+| P0-1 无工具调用 | ToolRegistry + 4基础工具，巽风/震造/乾断/坤载各有所用 |
+| P0-2 无多轮记忆 | LangGraph MemorySaver + thread_id |
+| P1-6 失败恢复 | LangGraph checkpoint + LLM retry |
+| 架构 执行层重构 | LangGraph 状态图，灵魂层保留 |
+
+### 待完成（下一步）
+- P1-4 LLM-as-a-Judge：评估器接入真实 LLM（基础设施已就绪）
+- P1-5 语义路由：LLM 判断人格路由（基础设施已就绪）
+- DeepSeek 激活：用户提供有效 key 后设置环境变量即可
+
+---
+
 ## [2.2.0] - 2026-06-26
 
 ### 重大变更：基于业内 agent 评测标准的诊断与健壮性优化

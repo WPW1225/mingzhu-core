@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-06-25 17:31:21",
-  "duration": 2.147907257080078,
+  "timestamp": "2026-06-25 17:51:15",
+  "duration": 75.98060584068298,
   "results": {
     "red_lines": {
       "passed": 16,
@@ -32,6 +32,11 @@
     "robustness": {
       "passed": 13,
       "total": 13,
+      "status": "PASS"
+    },
+    "v3_integration": {
+      "passed": 14,
+      "total": 14,
       "status": "PASS"
     }
   },

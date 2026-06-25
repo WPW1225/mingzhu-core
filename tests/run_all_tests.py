@@ -114,6 +114,21 @@ def run_all_tests():
         print(f"❌ 健壮性测试出错：{e}")
     print()
 
+    # 7. v3.0 集成测试（需真实 LLM，可能较慢）
+    print(">>> 运行 v3.0 集成测试（LangGraph + LLM + 工具）...")
+    try:
+        from tests.test_v3_integration import test_v3_integration
+        passed, total = test_v3_integration()
+        results["v3_integration"] = {
+            "passed": passed,
+            "total": total,
+            "status": "PASS" if passed == total else "FAIL",
+        }
+    except Exception as e:
+        results["v3_integration"] = {"status": "ERROR", "error": str(e)}
+        print(f"❌ v3.0 集成测试出错：{e}")
+    print()
+
     # 汇总
     duration = time.time() - start_time
     print("=" * 70)

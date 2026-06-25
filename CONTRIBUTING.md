@@ -15,9 +15,12 @@ digital-twin-core/
 │   ├── ziwei_config.yaml      # 紫微斗数数据
 │   └── personas/              # 八卦人格配置（8个）
 ├── agent_system/              # Agent 系统
-│   ├── __init__.py            # MingZhu 主类
+│   ├── __init__.py            # MingZhu 主类（兼容入口）
 │   ├── config_loader.py       # 配置加载器
 │   ├── cognitive_cycle.py     # 认知循环（预见→执行→反思）
+│   ├── llm_backends.py        # LLM 后端抽象层（智谱+DeepSeek）
+│   ├── langgraph_engine.py    # LangGraph 状态图引擎
+│   ├── tools.py               # 工具系统（search/calc/code/file）
 │   ├── evaluator.py           # LLM-as-a-Judge 评估器
 │   └── collaboration.py       # 多人格协作协议
 ├── tests/                     # 测试套件
@@ -27,6 +30,7 @@ digital-twin-core/
 │   ├── test_adversarial.py    # 对抗性测试
 │   ├── test_cognitive_cycle.py # 认知循环测试
 │   ├── test_robustness.py     # 健壮性测试（漂移/重试/冲突）
+│   ├── test_v3_integration.py # v3.0集成测试（LangGraph+LLM+工具）
 │   └── run_all_tests.py       # 测试运行器
 ├── SOUL.md                    # 系统提示词（引用配置）
 ├── ASTRO.md                   # 西方占星数据
@@ -175,5 +179,6 @@ python3 tests/run_all_tests.py
 - 对抗性测试（10个用例，100%通过）
 - 认知循环测试（15个检查项，100%通过）
 - 健壮性测试（13个检查项，100%通过）
+- v3.0集成测试（14个检查项，100%通过，需真实LLM）
 
 CI/CD 会自动运行这些测试，未通过不可合并。
