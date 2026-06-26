@@ -149,6 +149,17 @@ def chat_with_details(user_input: str, session_id: str = "default") -> Dict[str,
             outcome="corrected" if correction else "success",
             lesson=lesson, reusable=bool(lesson),
         ))
+
+        # v4.2: 学习官——从对话提炼知识到知识库
+        try:
+            from .learning_officer import get_learning_officer
+            clo = get_learning_officer()
+            learned = clo.learn_from_conversation(
+                user_input, output["output"], output["observer"], graph.router
+            )
+            output["learned"] = learned
+        except Exception:
+            pass
     except Exception:
         pass  # 进化失败不影响主流程
 

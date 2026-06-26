@@ -4,6 +4,33 @@
 
 ---
 
+## [4.3.0] - 2026-06-27
+
+### 重大变更：戊土记忆官+甲木学习官+遗忘机制+LangSmith+删除guidelines
+
+#### 新增戊土·记忆官（wu_tu.py）
+- 命名：时柱戊土，阳土主储藏。被明烛按需调用，不常驻
+- LangGraph节点memory_recall，检索相关记忆+遗忘机制
+- 遗忘：对话历史>50条清理，进化经验>500条清理
+
+#### 新增甲木·学习官（jia_mu.py）
+- 命名：甲木用神之首生丁火，阳木主生发。学习外部知识
+- LangGraph节点knowledge_learn，web_search+LLM提炼存知识库
+- 与evolution区分：甲木向外学习，evolution向内归纳
+
+#### LangGraph 8节点图
+- initiation→planning→[memory_recall|knowledge_learn|direct]→execution→review→retrospective
+- 明烛planning后条件路由：含"之前"→戊土，含"什么是"→甲木
+
+#### LangSmith集成
+- LANGCHAIN_TRACING_V2+API_KEY+PROJECT=mingzhu
+- trace自动上报app.langsmith.com
+
+#### 删除CODING_GUIDELINES.md
+- 用户明确：4条只是参考，不是必须执行
+
+---
+
 ## [4.0.0] - 2026-06-27
 
 ### 重大变更：企业级组织架构 + GAIA真实测试 + 多步推理修复

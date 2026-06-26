@@ -26,6 +26,12 @@ from datetime import datetime
 
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
+
+# v4.2: LangSmith tracing 自动启用（设了环境变量就自动上报）
+import os as _os
+if _os.environ.get("LANGCHAIN_API_KEY"):
+    _os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
+    _os.environ.setdefault("LANGCHAIN_PROJECT", "mingzhu")
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from typing_extensions import TypedDict
 
@@ -85,28 +91,39 @@ class MingZhuGraph:
         self.graph = self._build_graph()
 
     def _build_graph(self):
-        """构建状态图（v4.1: 企业级5阶段工作流）
+        """构建状态图（v4.3: 企业级5阶段+记忆官戊土+学习官甲木）
 
-        5阶段：立项→规划→执行→审查→复盘
-        对应企业流程：CEO接收任务→C-level规划→部门执行→观察部审查→CEO复盘
+        5阶段：立项→规划→[记忆/学习按需]→执行→审查→复盘
+        戊土(记忆官)、甲木(学习官)由明烛在planning判断是否调用，不常驻。
         """
         workflow = StateGraph(MingZhuState)
 
-        # v4.1: 5阶段节点（企业级工作流）
-        workflow.add_node("initiation", self._node_initiation)      # 立项：CEO接收任务
-        workflow.add_node("planning", self._node_planning)          # 规划：C-level制定计划
-        workflow.add_node("execution", self._node_execute_personas) # 执行：部门并行/串行
-        workflow.add_node("review", self._node_review)              # 审查：观察部+CSO
-        workflow.add_node("retrospective", self._node_retrospective)  # 复盘：CEO汇总+经验沉淀
+        # 5阶段节点
+        workflow.add_node("initiation", self._node_initiation)
+        workflow.add_node("planning", self._node_planning)
+        workflow.add_node("memory_recall", self._node_memory_recall)  # v4.3: 戊土
+        workflow.add_node("knowledge_learn", self._node_knowledge_learn)  # v4.3: 甲木
+        workflow.add_node("execution", self._node_execute_personas)
+        workflow.add_node("review", self._node_review)
+        workflow.add_node("retrospective", self._node_retrospective)
 
-        # 设置入口
         workflow.set_entry_point("initiation")
 
-        # 5阶段顺序流
+        # 5阶段顺序流 + 按需调用记忆/学习
         workflow.add_edge("initiation", "planning")
-        workflow.add_edge("planning", "execution")
+        # planning后条件路由：判断是否需要记忆/学习
+        workflow.add_conditional_edges(
+            "planning",
+            self._after_planning,
+            {
+                "memory": "memory_recall",
+                "learn": "knowledge_learn",
+                "direct": "execution",
+            },
+        )
+        workflow.add_edge("memory_recall", "execution")
+        workflow.add_edge("knowledge_learn", "execution")
         workflow.add_edge("execution", "review")
-        # 审查后条件路由：通过→复盘，不通过→退回执行修正
         workflow.add_conditional_edges(
             "review",
             self._after_review,
@@ -115,6 +132,53 @@ class MingZhuGraph:
         workflow.add_edge("retrospective", END)
 
         return workflow.compile(checkpointer=self.checkpointer)
+
+    # ---------- v4.3: 戊土(记忆官)+甲木(学习官)节点 ----------
+
+    def _after_planning(self, state: MingZhuState) -> str:
+        """明烛判断：这个任务需要回忆记忆吗？需要学习外部知识吗？"""
+        user_input = state.get("user_input", "")
+        # 简单规则判断（避免每次都调LLM浪费token）
+        # 含"之前/上次/刚才"→需要记忆
+        if any(w in user_input for w in ["之前", "上次", "刚才", "之前说的", "继续"]):
+            return "memory"
+        # 含"搜索/查询/了解/学习/最新"→需要外部知识
+        if any(w in user_input for w in ["搜索", "查询", "了解", "学习", "最新", "什么是"]):
+            return "learn"
+        return "direct"
+
+    def _node_memory_recall(self, state: MingZhuState) -> Dict:
+        """戊土·记忆官：被明烛调用时检索相关记忆"""
+        try:
+            from .wu_tu import get_wu_tu
+            recalled = get_wu_tu().recall(state.get("user_input", ""))
+            if recalled:
+                existing_ctx = state.get("context", "")
+                return {"context": (existing_ctx + "\n\n" + recalled).strip()}
+        except Exception as e:
+            logger.debug(f"戊土记忆检索失败: {e}")
+        return {}
+
+    def _node_knowledge_learn(self, state: MingZhuState) -> Dict:
+        """甲木·学习官：被明烛调用时学习外部知识"""
+        try:
+            from .jia_mu import get_jia_mu
+            jia_mu = get_jia_mu()
+            user_input = state.get("user_input", "")
+            # 先查知识库是否已有
+            existing = jia_mu.query(user_input)
+            if existing:
+                ctx = state.get("context", "")
+                return {"context": (ctx + "\n\n" + existing).strip()}
+            # 没有则学习
+            result = jia_mu.learn(user_input, self.router)
+            if result.get("learned"):
+                learned_text = f"【甲木·刚学到】{result.get('content','')}"
+                ctx = state.get("context", "")
+                return {"context": (ctx + "\n\n" + learned_text).strip()}
+        except Exception as e:
+            logger.debug(f"甲木学习失败: {e}")
+        return {}
 
     # ---------- v4.1: 5阶段节点实现 ----------
 
@@ -254,6 +318,15 @@ class MingZhuGraph:
             evo_ctx = get_engine().get_evolution_context()
             if evo_ctx:
                 context = (context + "\n\n" + evo_ctx).strip()
+        except Exception:
+            pass
+
+        # v4.2: 记忆官注入——对话前自动检索相关历史记忆
+        try:
+            from .memory_officer import get_memory_officer
+            recalled = get_memory_officer().recall_relevant(user_input)
+            if recalled:
+                context = (context + "\n\n" + recalled).strip()
         except Exception:
             pass
 
