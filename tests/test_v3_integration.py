@@ -17,6 +17,10 @@ from agent_system.llm_backends import get_router, Scene
 from agent_system.tools import get_registry
 from agent_system.langgraph_engine import MingZhuGraph
 
+# v3.9.1: CI 环境无 API key 时跳过需真实 LLM 的测试
+_HAS_LLM = bool(os.environ.get("ZHIPU_API_KEY") or os.environ.get("DEEPSEEK_API_KEY"))
+_SKIP_REASON = "需要 ZHIPU_API_KEY 或 DEEPSEEK_API_KEY 环境变量（CI无key时跳过）"
+
 
 # ============================================================
 # 测试1：LLM 后端
@@ -24,6 +28,9 @@ from agent_system.langgraph_engine import MingZhuGraph
 
 def test_llm_backends():
     print("=== 测试1：LLM 后端 ===")
+    if not _HAS_LLM:
+        print(f"  ⏭️ 跳过（{_SKIP_REASON}）")
+        return 0, 0
     router = get_router()
     passed = 0
     total = 0
@@ -122,6 +129,9 @@ def test_tools():
 
 def test_langgraph_engine():
     print("=== 测试3：LangGraph 引擎（真实 LLM）===")
+    if not _HAS_LLM:
+        print(f"  ⏭️ 跳过（{_SKIP_REASON}）")
+        return 0, 0
     passed = 0
     total = 0
 

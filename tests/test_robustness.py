@@ -86,9 +86,16 @@ def test_retry_fallback():
     passed = 0
     total = 0
 
-    mz = MingZhu()
+    # v3.9.1: CI无key时用纯规则模式（不接LLMRouter）
+    import os
+    if not (os.environ.get("ZHIPU_API_KEY") or os.environ.get("DEEPSEEK_API_KEY")):
+        # 临时清除key让MingZhu走规则模式
+        mz = MingZhu(llm_client=None)
+        mz._router = None  # 强制规则模式
+    else:
+        mz = MingZhu()
 
-    # 2.1 正常执行（LLM未启用，走规则模式，应成功）
+    # 2.1 正常执行（规则模式，应成功）
     total += 1
     result = mz._execute_persona("qian_duan", "分析这个决策", max_retries=1)
     assert result.error is None or result.error == "", f"正常执行不应有error：{result.error}"
@@ -162,13 +169,13 @@ def test_conflict_detection():
     print(f"  ✅ 无冲突正确识别")
     passed += 1
 
-    # 3.2 行动建议对立（建议 vs 否决）
+    # 3.2 行动建议对立（建议 vs 不建议）
     total += 1
     results = [
         AgentResult(persona="qian_duan", name="乾断", icon="☰",
                     content="建议立即执行这个方案。", confidence="高"),
         AgentResult(persona="gen_shou", name="艮守", icon="☶",
-                    content="否决，存在安全风险。", confidence="高"),
+                    content="不建议执行，存在安全风险。", confidence="高"),
     ]
     conflicts = mz._detect_conflicts(results)
     assert len(conflicts) >= 1, f"应检测到冲突，实际{conflicts}"

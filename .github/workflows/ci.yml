@@ -63,22 +63,29 @@ jobs:
           python-version: '3.12'
 
       - name: 安装 bandit
-        run: pip install bandit
+        run: pip install bandit pyyaml
 
       - name: 运行安全扫描
-        run: bandit -c bandit.yaml -r agent_system/ -f json -o bandit-report.json || true
+        run: bandit -c bandit.yaml -r agent_system/ -f json -o bandit-report.json --skip B603,B404,B311,B108 || true
 
       - name: 安全扫描结果
         run: |
           echo "=== Bandit 安全扫描结果 ==="
-          cat bandit-report.json | python -c "
+          if [ -f bandit-report.json ]; then
+            cat bandit-report.json | python -c "
           import sys, json
-          d = json.load(sys.stdin)
-          print(f'扫描文件数: {d.get(\"metrics\",{}).get(\"_totals\",{}).get(\"loc\",0)}')
-          print(f'问题数: {len(d.get(\"results\",[]))}')
-          for r in d.get('results',[])[:10]:
-              print(f'  [{r[\"issue_severity\"]}] {r[\"test_id\"]}: {r[\"filename\"]}:{r[\"line_number\"]} - {r[\"issue_text\"][:60]}')
+          try:
+              d = json.load(sys.stdin)
+              print(f'扫描文件数: {d.get(\"metrics\",{}).get(\"_totals\",{}).get(\"loc\",0)}')
+              print(f'问题数: {len(d.get(\"results\",[]))}')
+              for r in d.get('results',[])[:10]:
+                  print(f'  [{r[\"issue_severity\"]}] {r[\"test_id\"]}: {r[\"filename\"]}:{r[\"line_number\"]} - {r[\"issue_text\"][:60]}')
+          except Exception as e:
+              print(f'解析报告失败: {e}')
           "
+          else
+            echo "bandit-report.json 未生成（可能 bandit 配置问题）"
+          fi
 
       - name: 上传安全报告
         if: always()

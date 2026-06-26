@@ -118,6 +118,7 @@ class ZhipuBackend:
 
     def _generate_via_cli(self, prompt, system_prompt, temperature, max_tokens, model, start):
         import subprocess
+        import time as _time
         full_prompt = prompt
         if system_prompt:
             full_prompt = f"[系统指令]\n{system_prompt}\n\n[用户输入]\n{prompt}"

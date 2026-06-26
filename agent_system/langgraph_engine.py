@@ -203,6 +203,7 @@ class MingZhuGraph:
 
         # v3.9: DISCUSS 策略——并行执行+内部讨论轮
         if schedule.strategy == ScheduleStrategy.DISCUSS:
+            schedule.groups = [persona_ids]  # 记录分组供审计
             results = self._execute_discuss(persona_ids, user_input, context)
         else:
             # 按调度计划执行
