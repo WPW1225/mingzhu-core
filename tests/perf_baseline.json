@@ -1,0 +1,37 @@
+{
+  "timestamp": "2026-06-26 16:25:41",
+  "results": [
+    {
+      "name": "路由(无LLM)",
+      "runs": 3,
+      "avg_ms": 0.0,
+      "min_ms": 0.0,
+      "max_ms": 0.0
+    },
+    {
+      "name": "目标漂移检测",
+      "runs": 3,
+      "avg_ms": 0.4,
+      "min_ms": 0.0,
+      "max_ms": 1.3
+    },
+    {
+      "name": "calculator工具",
+      "runs": 3,
+      "avg_ms": 0.1,
+      "min_ms": 0.0,
+      "max_ms": 0.2
+    },
+    {
+      "name": "向量检索(40文档)",
+      "runs": 3,
+      "avg_ms": 0.0,
+      "min_ms": 0.0,
+      "max_ms": 0.0
+    },
+    {
+      "name": "内存占用(峰值)",
+      "value_mb": 0.01
+    }
+  ]
+}

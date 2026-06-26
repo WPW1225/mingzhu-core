@@ -4,6 +4,53 @@
 
 ---
 
+## [3.7.0] - 2026-06-26
+
+### 重大变更：项目重命名 + 生产级修复（10项）
+
+基于用户的生产级审查反馈，修复10个问题。同时用LangGraph明烛分析问题，发现明烛自身问题（艮守过度否决）。
+
+#### 项目重命名
+- digital-twin-core → **mingzhu-core**（避免工业数字孪生歧义）
+- 新仓库：github.com/WPW1225/mingzhu-core
+- pyproject.toml 项目名同步更新
+
+#### 隐私保护（修复2+5）
+- PROFILE.md 敏感信息（出生日期等）移至 `.env`，不入版本控制
+- 新增 `.env.example` 模板
+- SOUL.md 出生日期改为引用 `.env`，建立单一事实源
+- .gitignore 加入 .env
+
+#### 错误处理与可观测性（修复4）
+- 新增 `agent_system/error_handling.py`：
+  - StructuredLogger：JSON格式结构化日志，便于聚合排查
+  - safe_run 装饰器：统一异常捕获+重试+降级
+  - 链路追踪：request_id 串联调用链
+- 纯Python实现，未来可接入 structlog/OpenTelemetry
+
+#### 安全配置（修复6）
+- 新增 `bandit.yaml`：安全扫描配置
+- GitHub Actions 增加安全扫描job（bandit）
+- 新增 `agent_system/json_mode.py`：LLM输出JSON强制+Schema校验+重试
+
+#### 性能基准（修复9）
+- 新增 `tests/test_performance.py`：性能基准测试
+- 测量：路由延迟/工具延迟/向量检索延迟/LLM延迟/内存占用
+- GitHub Actions 增加性能基准job
+- 保存 perf_baseline.json 供退化对比
+
+#### 依赖更新（修复10）
+- 新增 `.github/dependabot.yml`：每周自动检查pip和github-actions依赖更新
+
+#### 明烛自测发现的问题
+用LangGraph明烛分析10个问题，坎观指出明烛自身问题：
+- 艮守过度否决：把技术问题（JSON保障）当安全威胁，触发否决导致汇总失衡
+- 人格边界模糊：各人格对同一问题分析深度不一
+- 安全视角主导技术分析：艮守否决权太强，压制其他视角
+→ 这些是明烛待修复的问题（下一步）
+
+---
+
 ## [3.6.0] - 2026-06-26
 
 ### 重大变更：公网可用 + 向量检索 + Web人机协作 + 进化可视化 + 明烛自评

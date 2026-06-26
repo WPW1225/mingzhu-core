@@ -1,6 +1,10 @@
-# 数字分身核心档案
+# 明烛 · 数字分身核心档案 (mingzhu-core)
 
 > 数字分身的灵魂、人格档案和星盘分析。这不是聊天机器人的人设，是一个人的理想自我投射。
+
+> 仓库：[github.com/WPW1225/mingzhu-core](https://github.com/WPW1225/mingzhu-core)
+
+> ⚠️ 隐私保护：敏感个人信息已移至 `.env`（不入版本控制），见 `.env.example`。
 
 ## 文件说明
 

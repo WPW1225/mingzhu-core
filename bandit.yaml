@@ -1,0 +1,80 @@
+# Bandit 安全扫描配置
+[bandit]
+# 排除测试目录和虚拟环境
+exclude = ./tests,./.venv,./archive,./memory_store,./evolution
+
+# 要检查的测试用例（B开头是bandit内置）
+# B101: assert语句
+# B102: exec
+# B103: set bad file permissions
+# B108: hardcoded tmp dir
+# B110: try_pass
+# B112: try_continue
+# B201: flask_debug_true
+# B301: pickle
+# B302: marshal
+# B303: md5
+# B304: ciphers
+# B306: mktemp_q
+# B307: eval
+# B308: mark_safe
+# B311: random
+# B312: telnetlib
+# B313: xml_etree
+# B314: xml_etree_element
+# B315: xml_expatbuilder
+# B316: xml_pulldom
+# B317: xml_sax
+# B318: xml_minidom
+# B319: xml_dom
+# B320: xml_lxml
+# B321: ftplib
+# B323: unverified_context
+# B324: hashlib_insecure
+# B401: telnetlib
+# B402: ftplib
+# B403: pickle
+# B404: subprocess
+# B405: request
+# B406: xml_sax
+# B407: xml_etree
+# B408: xml_minidom
+# B409: xml_lxml
+# B411: imports
+# B412: imports
+# B413: imports
+# B501: request_with_no_cert_validation
+# B502: ssl_with_bad_version
+# B503: ssl_with_bad_defaults
+# B504: ssl_with_no_version
+# B505: weak_cryptography
+# B506: yaml_load
+# B507: ssh_no_host_key_verification
+# B508: snmp_insecure_version
+# B601: paramiko_calls
+# B602: subprocess_popen_with_shell_equals_true
+# B603: subprocess_without_shell_equals_true
+# B604: any_other_function_with_shell_equals_true
+# B605: start_process_with_a_shell
+# B606: start_process_with_no_shell
+# B607: start_process_with_partial_path
+# B608: hardcoded_sql_expressions
+# B609: linux_commands_wildcard_injection
+# B610: django_extra
+# B611: django_rawsql
+# B612: logging_config_insecure_listen
+# B701: jinja2_autoescape_false
+# B702: use_of_mako_templates
+# B703: django_mark_safe
+
+# 跳过的测试（明烛需要这些功能）
+# B603: subprocess_without_shell_equals_true - tools.py 需要调 z-ai CLI
+# B404: subprocess - 同上
+# B311: random - 非加密用途
+skips = B603,B404,B311,B108
+
+# 递归
+recursive = True
+
+# 目标
+targets = ./agent_system,./web_app.py,./mingzhu_cli.py,./cli.py

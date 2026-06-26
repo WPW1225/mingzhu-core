@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mingzhu"
-version = "3.3.0"
-description = "明烛 - 数字分身 Agent 系统（丁火烛照，照亮未知）"
+name = "mingzhu-core"
+version = "3.7.0"
+description = "明烛 - 个人AI数字分身Agent系统（丁火烛照，照亮未知）"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
