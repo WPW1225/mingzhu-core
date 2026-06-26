@@ -292,7 +292,8 @@ class MingZhuGraph:
 2. 置信度：高/中/低
 3. 如果是艮守且发现安全问题，标注「否决」
 4. 如果是坎观，提供观察报告
-"""
+
+【重要】必须给出明确的最终结论，不要分析到一半就停。如果是计算题，必须给出最终数字答案。"""
         # v3.8: 艮守否决权约束——只有真正的安全问题才能否决
         if pid == "gen_shou":
             system_prompt += """
@@ -313,7 +314,9 @@ class MingZhuGraph:
 
         scene = Scene.SAFETY if pid == "gen_shou" else Scene.ANALYSIS
         full_prompt = user_input if not context else f"{context}\n\n当前问题：{user_input}"
-        resp = self.router.generate(full_prompt, system_prompt=system_prompt, scene=scene)
+        # v4.0: 增加 max_tokens + 要求最终结论（修复多步推理不完整问题）
+        resp = self.router.generate(full_prompt, system_prompt=system_prompt,
+                                    scene=scene, max_tokens=2000)
 
         content = resp.content if resp.ok else f"（{persona_name} 调用失败：{resp.error}）"
         # v3.8: 精确否决检测——只有【否决:xxx】格式才算真否决

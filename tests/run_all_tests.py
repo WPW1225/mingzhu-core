@@ -143,6 +143,20 @@ def run_all_tests():
         print(f"❌ 高强度测试出错：{e}")
     print()
 
+    # 9. GAIA维度测试（v4.0，需真实LLM）
+    print(">>> 运行 GAIA 维度测试（真实能力评估）...")
+    try:
+        from tests.test_gaia_dimensions import test_gaia_dimensions
+        issues = test_gaia_dimensions()
+        results["gaia"] = {
+            "issues_found": len(issues),
+            "status": "PASS" if not issues else "FAIL",
+        }
+    except Exception as e:
+        results["gaia"] = {"status": "ERROR", "error": str(e)}
+        print(f"❌ GAIA测试出错：{e}")
+    print()
+
     # 汇总
     duration = time.time() - start_time
     print("=" * 70)
