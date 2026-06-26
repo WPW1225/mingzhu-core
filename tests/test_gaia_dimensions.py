@@ -105,6 +105,18 @@ def test_gaia_dimensions():
             "question": "初创公司5人团队，预算有限，该选PostgreSQL还是MongoDB？请从成本、学习曲线、扩展性分析。",
             "expected_keywords": ["PostgreSQL", "MongoDB", "成本", "扩展"],
         },
+        # 7. 工具使用-搜索（v4.1新增，GAIA核心维度）
+        {
+            "dimension": "工具使用-搜索",
+            "question": "搜索一下 LangGraph 的最新版本是什么，有什么主要特性",
+            "expected_keywords": ["LangGraph", "版本", "状态", "图"],
+        },
+        # 8. 文件处理（v4.1新增，GAIA核心维度）
+        {
+            "dimension": "文件处理",
+            "question": "读取 SOUL.md 文件，告诉我明烛的核心使命是什么",
+            "expected_keywords": ["照亮", "未知", "发现", "问题"],
+        },
     ]
 
     results = []

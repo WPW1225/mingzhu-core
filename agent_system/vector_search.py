@@ -102,10 +102,8 @@ def cosine_similarity(vec1: Dict[str, float], vec2: Dict[str, float]) -> float:
     """余弦相似度（稀疏向量）"""
     if not vec1 or not vec2:
         return 0.0
-    # 点积
     common = set(vec1.keys()) & set(vec2.keys())
     dot = sum(vec1[t] * vec2[t] for t in common)
-    # 模长
     norm1 = math.sqrt(sum(v * v for v in vec1.values()))
     norm2 = math.sqrt(sum(v * v for v in vec2.values()))
     if norm1 == 0 or norm2 == 0:
@@ -113,14 +111,66 @@ def cosine_similarity(vec1: Dict[str, float], vec2: Dict[str, float]) -> float:
     return dot / (norm1 * norm2)
 
 
+def cosine_sim_dense(v1: List[float], v2: List[float]) -> float:
+    """余弦相似度（稠密向量，用于embedding）"""
+    if not v1 or not v2 or len(v1) != len(v2):
+        return 0.0
+    dot = sum(a * b for a, b in zip(v1, v2))
+    n1 = math.sqrt(sum(a * a for a in v1))
+    n2 = math.sqrt(sum(b * b for b in v2))
+    if n1 == 0 or n2 == 0:
+        return 0.0
+    return dot / (n1 * n2)
+
+
+class ZhipuEmbedding:
+    """智谱 embedding API 后端（v4.1新增）
+
+    优势：零依赖、零模型下载、API调用
+    需要：ZHIPU_API_KEY 环境变量
+    """
+
+    def __init__(self):
+        self.api_key = os.environ.get("ZHIPU_API_KEY", "")
+        self.api_base = "https://open.bigmodel.cn/api/paas/v4/embeddings"
+        self.model = "embedding-3"
+        self._cache = {}  # 简单缓存避免重复调用
+
+    def is_available(self) -> bool:
+        return bool(self.api_key)
+
+    def embed(self, text: str) -> List[float]:
+        if not self.is_available():
+            return []
+        if text in self._cache:
+            return self._cache[text]
+        try:
+            import urllib.request
+            payload = json.dumps({"model": self.model, "input": text[:500]}).encode("utf-8")
+            req = urllib.request.Request(
+                self.api_base, data=payload,
+                headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            vec = data.get("data", [{}])[0].get("embedding", [])
+            self._cache[text] = vec
+            return vec
+        except Exception as e:
+            logger.debug(f"智谱embedding失败: {e}")
+            return []
+
+
 class VectorMemorySearch:
-    """向量记忆检索器"""
+    """向量记忆检索器（v4.1: 支持智谱embedding + TF-IDF降级）"""
 
     def __init__(self, memory_dir: Path):
         self.memory_dir = memory_dir
         self.vectorizer = TfidfVectorizer()
+        self.embedder = ZhipuEmbedding()  # v4.1: embedding后端
         self._index_cache = None
         self._index_mtime = 0
+        self._embed_vectors = None  # embedding向量缓存
 
     def _load_all_memories(self) -> List[Dict]:
         """加载所有会话的所有记忆条目"""
@@ -164,25 +214,58 @@ class VectorMemorySearch:
         self._index_mtime = current_mtime
 
     def search(self, query: str, limit: int = 5) -> List[Dict]:
-        """语义检索：返回最相关的记忆条目"""
+        """语义检索：返回最相关的记忆条目
+
+        v4.1: 优先用智谱embedding（语义更强），降级用TF-IDF
+        """
         self._build_index()
         if not self._index_cache:
             return []
+
+        # v4.1: 优先embedding检索
+        if self.embedder.is_available():
+            results = self._search_with_embedding(query, limit)
+            if results:
+                return results
+            # embedding失败则降级TF-IDF
+
+        # TF-IDF检索
         query_vec = self.vectorizer.transform(query)
         if not query_vec:
             return []
-        # 计算相似度并排序
         scored = []
-        for entry, vec in zip(
-            self._index_cache["entries"],
-            self._index_cache["vectors"],
-        ):
+        for entry, vec in zip(self._index_cache["entries"], self._index_cache["vectors"]):
             sim = cosine_similarity(query_vec, vec)
             if sim > 0:
                 scored.append((sim, entry))
         scored.sort(key=lambda x: x[0], reverse=True)
+        return self._format_results(scored[:limit])
+
+    def _search_with_embedding(self, query: str, limit: int) -> List[Dict]:
+        """用智谱embedding检索"""
+        query_vec = self.embedder.embed(query)
+        if not query_vec:
+            return []
+        # 懒构建embedding索引
+        if self._embed_vectors is None:
+            self._embed_vectors = []
+            for e in self._index_cache["entries"]:
+                text = e.get("user_input", "") + " " + e.get("output", "")
+                self._embed_vectors.append(self.embedder.embed(text[:500]))
+        # 计算相似度
+        scored = []
+        for entry, vec in zip(self._index_cache["entries"], self._embed_vectors):
+            if vec:
+                sim = cosine_sim_dense(query_vec, vec)
+                if sim > 0.3:  # 阈值，过滤不相关
+                    scored.append((sim, entry))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return self._format_results(scored[:limit])
+
+    def _format_results(self, scored: List) -> List[Dict]:
+        """格式化结果"""
         results = []
-        for sim, entry in scored[:limit]:
+        for sim, entry in scored:
             results.append({
                 "session_id": entry.get("_session_id", ""),
                 "timestamp": entry.get("timestamp", ""),

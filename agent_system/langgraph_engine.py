@@ -85,33 +85,95 @@ class MingZhuGraph:
         self.graph = self._build_graph()
 
     def _build_graph(self):
-        """构建状态图"""
+        """构建状态图（v4.1: 企业级5阶段工作流）
+
+        5阶段：立项→规划→执行→审查→复盘
+        对应企业流程：CEO接收任务→C-level规划→部门执行→观察部审查→CEO复盘
+        """
         workflow = StateGraph(MingZhuState)
 
-        # 添加节点
-        workflow.add_node("route", self._node_route)
-        workflow.add_node("execute", self._node_execute_personas)
-        workflow.add_node("safety_check", self._node_safety_check)
-        workflow.add_node("conflict_check", self._node_conflict_check)
-        workflow.add_node("synthesize", self._node_synthesize)
-        workflow.add_node("observe", self._node_observe)
+        # v4.1: 5阶段节点（企业级工作流）
+        workflow.add_node("initiation", self._node_initiation)      # 立项：CEO接收任务
+        workflow.add_node("planning", self._node_planning)          # 规划：C-level制定计划
+        workflow.add_node("execution", self._node_execute_personas) # 执行：部门并行/串行
+        workflow.add_node("review", self._node_review)              # 审查：观察部+CSO
+        workflow.add_node("retrospective", self._node_retrospective)  # 复盘：CEO汇总+经验沉淀
 
         # 设置入口
-        workflow.set_entry_point("route")
+        workflow.set_entry_point("initiation")
 
-        # 添加边
-        workflow.add_edge("route", "execute")
+        # 5阶段顺序流
+        workflow.add_edge("initiation", "planning")
+        workflow.add_edge("planning", "execution")
+        workflow.add_edge("execution", "review")
+        # 审查后条件路由：通过→复盘，不通过→退回执行修正
         workflow.add_conditional_edges(
-            "safety_check",
-            self._after_safety_check,
-            {"pass": "conflict_check", "veto": "synthesize"},  # 否决也进汇总（标注否决）
+            "review",
+            self._after_review,
+            {"pass": "retrospective", "retry": "execution"},
         )
-        workflow.add_edge("execute", "safety_check")
-        workflow.add_edge("conflict_check", "synthesize")
-        workflow.add_edge("synthesize", "observe")
-        workflow.add_edge("observe", END)
+        workflow.add_edge("retrospective", END)
 
         return workflow.compile(checkpointer=self.checkpointer)
+
+    # ---------- v4.1: 5阶段节点实现 ----------
+
+    def _node_initiation(self, state: MingZhuState) -> Dict:
+        """阶段1：立项（CEO接收任务，判断复杂度，创建任务规格书）"""
+        user_input = state.get("user_input", "")
+        # 复用现有路由逻辑
+        route_result = self._node_route(state)
+        # CEO判断复杂度
+        complexity = "complex" if len(user_input) > 30 else "simple"
+        return {
+            **route_result,
+            "task_spec": {
+                "goal": user_input,
+                "complexity": complexity,
+                "phase": "initiation",
+            },
+        }
+
+    def _node_planning(self, state: MingZhuState) -> Dict:
+        """阶段2：规划（C-level制定执行计划，决定调度策略）"""
+        from .scheduler import plan_schedule
+        persona_ids = state.get("persona_ids", [])
+        user_input = state.get("user_input", "")
+        schedule = plan_schedule(persona_ids, user_input, self.router)
+        return {
+            "schedule": schedule.to_dict(),
+            "task_spec": {"phase": "planning", "plan": schedule.reason},
+        }
+
+    def _node_review(self, state: MingZhuState) -> Dict:
+        """阶段4：审查（观察部+CSO独立审查，决定通过或退回）"""
+        # 复用现有安全检查+冲突检测+观察
+        safety = self._node_safety_check(state)
+        conflicts = self._node_conflict_check(state)
+        # 观察部审查
+        observer = self._node_observe(state)
+        # 判断是否通过：无否决 + 冲突可接受
+        passed = not safety.get("vetoed", False)
+        return {
+            **safety,
+            "conflicts": conflicts.get("conflicts", []),
+            "observer_report": observer.get("observer_report", ""),
+            "review_passed": passed,
+            "task_spec": {"phase": "review"},
+        }
+
+    def _after_review(self, state: MingZhuState) -> str:
+        """审查后条件路由：通过→复盘，否决→退回执行"""
+        return "pass" if state.get("review_passed", True) else "retry"
+
+    def _node_retrospective(self, state: MingZhuState) -> Dict:
+        """阶段5：复盘（CEO汇总最终输出+经验沉淀）"""
+        # 复用现有汇总
+        synth = self._node_synthesize(state)
+        return {
+            "final_output": synth["final_output"],
+            "task_spec": {"phase": "retrospective"},
+        }
 
     # ---------- 节点实现 ----------
 

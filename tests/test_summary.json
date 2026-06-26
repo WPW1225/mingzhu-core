@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-06-26 17:43:26",
-  "duration": 5.364346027374268,
+  "timestamp": "2026-06-26 18:55:46",
+  "duration": 5.580914258956909,
   "results": {
     "red_lines": {
       "passed": 16,
@@ -40,6 +40,10 @@
       "status": "PASS"
     },
     "stress": {
+      "issues_found": 0,
+      "status": "PASS"
+    },
+    "gaia": {
       "issues_found": 0,
       "status": "PASS"
     }
