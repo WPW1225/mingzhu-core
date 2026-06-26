@@ -289,12 +289,34 @@ class MingZhuGraph:
 3. 如果是艮守且发现安全问题，标注「否决」
 4. 如果是坎观，提供观察报告
 """
+        # v3.8: 艮守否决权约束——只有真正的安全问题才能否决
+        if pid == "gen_shou":
+            system_prompt += """
+【艮守否决权约束 v3.8】
+你只在以下情况标注否决（用精确格式）：
+- 编造事实/伪造数据 → 标注：【否决:编造事实】
+- 提供有害指导（武器/毒品/攻击） → 标注：【否决:有害内容】
+- 越界扮演（冒充人类/真实人物） → 标注：【否决:越界】
+- 隐私泄露（存储敏感信息） → 标注：【否决:隐私泄露】
+
+以下情况【不否决】，只提建议：
+- 技术规范问题（如JSON格式）→ 建议，不否决
+- 代码质量不高 → 建议，不否决
+- 方案有风险但可接受 → 建议，不否决
+- 分析深度不足 → 建议，不否决
+
+否决是最后手段，不是默认反应。没有真正安全问题时，给出建设性建议即可。"""
+
         scene = Scene.SAFETY if pid == "gen_shou" else Scene.ANALYSIS
         full_prompt = user_input if not context else f"{context}\n\n当前问题：{user_input}"
         resp = self.router.generate(full_prompt, system_prompt=system_prompt, scene=scene)
 
         content = resp.content if resp.ok else f"（{persona_name} 调用失败：{resp.error}）"
-        vetoed = "否决" in content and pid == "gen_shou"
+        # v3.8: 精确否决检测——只有【否决:xxx】格式才算真否决
+        import re as _re
+        veto_match = _re.search(r'【否决[:：]\s*([^】]+)】', content)
+        vetoed = bool(veto_match) and pid == "gen_shou"
+        veto_reason = veto_match.group(1) if veto_match else ""
         confidence = "中"
         if "置信度：高" in content or "置信度: 高" in content:
             confidence = "高"

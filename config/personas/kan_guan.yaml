@@ -97,3 +97,7 @@ few_shot:
 
     '
 tools: []
+review_scope:
+  scope: 独立观察
+  focus: 盲点发现/质量评估/改进建议
+  not_focus: 执行/决策

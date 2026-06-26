@@ -1,0 +1,7 @@
+{
+  "dependencies": ["./agent_system"],
+  "graphs": {
+    "mingzhu": "./agent_system/studio_entry.py:graph"
+  },
+  "env": ".env"
+}

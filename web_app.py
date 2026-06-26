@@ -156,6 +156,58 @@ async def api_search(req: ChatRequest):
     return JSONResponse(results)
 
 
+# ============================================================
+# v3.8: RESTful API（资源路径式）
+# ============================================================
+
+@app.get("/api/v1/sessions")
+async def v1_list_sessions():
+    """GET /api/v1/sessions - 列出所有会话"""
+    return JSONResponse(list_sessions())
+
+
+@app.get("/api/v1/sessions/{session_id}")
+async def v1_get_session(session_id: str):
+    """GET /api/v1/sessions/{id} - 获取某会话历史"""
+    return JSONResponse(get_history(session_id))
+
+
+@app.delete("/api/v1/sessions/{session_id}")
+async def v1_delete_session(session_id: str):
+    """DELETE /api/v1/sessions/{id} - 删除某会话"""
+    ok = clear_session(session_id)
+    return JSONResponse({"deleted": ok, "session_id": session_id})
+
+
+@app.post("/api/v1/chat")
+async def v1_chat(req: ChatRequest):
+    """POST /api/v1/chat - 发送消息（非流式）"""
+    _apply_user_keys(req.token)
+    try:
+        result = chat_with_details(req.message, session_id=req.session_id)
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/api/v1/metrics")
+async def v1_metrics():
+    """GET /api/v1/metrics - 进化指标"""
+    return JSONResponse(evolution_metrics())
+
+
+@app.get("/api/v1/cost")
+async def v1_cost():
+    """GET /api/v1/cost - 成本统计"""
+    return JSONResponse(cost_summary())
+
+
+@app.post("/api/v1/search")
+async def v1_search(query: str):
+    """POST /api/v1/search?q=xxx - 记忆检索"""
+    return JSONResponse(search_memory(query))
+
+
 @app.get("/api/sessions")
 async def api_sessions():
     """列出所有会话"""

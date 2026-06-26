@@ -4,6 +4,56 @@
 
 ---
 
+## [3.8.0] - 2026-06-26
+
+### 重大变更：艮守否决权约束 + 人格边界 + ASTRO服务化 + RESTful API + LangGraph Studio
+
+修复明烛自测发现的问题（艮守过度否决），完成4项下一步，配置LangGraph Studio可视化调试。
+
+#### 修复1：艮守否决权约束（明烛自测发现的核心问题）
+- 问题：艮守把技术问题（JSON保障）当安全威胁，触发否决导致汇总失衡
+- 修复：
+  - prompt增加否决权约束：只在编造事实/有害内容/越界/隐私泄露时否决
+  - 技术规范/代码质量/方案风险/分析深度 → 只建议不否决
+  - 精确否决检测：从"含'否决'二字"改为正则匹配`【否决:理由】`格式
+- 验证：问"JSON保障问题"，不再触发否决，正常技术讨论
+
+#### 修复2：人格边界明确化
+- 8个人格yaml新增 `review_scope` 字段：
+  - scope: 审查范围
+  - focus: 关注重点
+  - not_focus: 不关注的领域
+- 艮守not_focus明确包含"技术规范/方案优劣"——不再越界否决技术问题
+- 坎观not_focus明确"执行/决策"——只观察不干预
+
+#### 修复3：ASTRO服务化（agent_system/astro_service.py）
+- 占星数据从ASTRO.md硬编码 → AstroService封装
+- 优先从.env读（隐私保护），fallback到ASTRO.md提取
+- 单例模式，其他模块通过get_astro()访问
+- 未来可替换为pyswisseph实时计算或占星API
+
+#### 修复4：RESTful API
+- web_app.py新增 /api/v1/* 资源路径：
+  - GET /api/v1/sessions（列出会话）
+  - GET /api/v1/sessions/{id}（会话历史）
+  - DELETE /api/v1/sessions/{id}（删除会话）
+  - POST /api/v1/chat（发消息）
+  - GET /api/v1/metrics（进化指标）
+  - GET /api/v1/cost（成本统计）
+- 保留旧接口兼容，新接口符合RESTful规范
+
+#### LangGraph Studio 配置
+- 新增 `langgraph.json`：Studio入口配置
+- 新增 `agent_system/studio_entry.py`：导出graph实例
+- 7个节点可被Studio可视化：route→execute→safety_check→conflict_check→synthesize→observe
+- 使用方式：VSCode写代码 + Studio可视化调试 + 热重载
+
+#### 旧仓库处理
+- digital-twin-core 内容已清空，替换为迁移说明
+- 需手动删除：GitHub → Settings → Delete this repository
+
+---
+
 ## [3.7.0] - 2026-06-26
 
 ### 重大变更：项目重命名 + 生产级修复（10项）

@@ -93,3 +93,7 @@ few_shot:
 
     '
 tools: []
+review_scope:
+  scope: 表达封装
+  focus: 汇总整合/结构清晰/冲突调和
+  not_focus: 深度分析/安全判断

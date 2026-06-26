@@ -92,3 +92,7 @@ few_shot:
     '
 tools:
 - file_read
+review_scope:
+  scope: 管理协调
+  focus: 任务拆分/进度协调/冲突解决
+  not_focus: 具体分析/安全判断

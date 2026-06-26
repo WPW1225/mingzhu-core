@@ -100,3 +100,7 @@ few_shot:
 
     '
 tools: []
+review_scope:
+  scope: 创意灵感
+  focus: 发散思维/创新方案/跨领域联想
+  not_focus: 可行性验证/安全审查

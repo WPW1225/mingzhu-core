@@ -94,3 +94,7 @@ few_shot:
     '
 tools:
 - code_execute
+review_scope:
+  scope: 安全审查
+  focus: 红线遵守/有害内容/隐私保护
+  not_focus: 技术规范/方案优劣

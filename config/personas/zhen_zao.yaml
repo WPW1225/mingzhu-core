@@ -96,3 +96,7 @@ few_shot:
 tools:
 - code_execute
 - file_read
+review_scope:
+  scope: 代码架构
+  focus: 技术实现/架构设计/可行性
+  not_focus: 商业决策/安全红线

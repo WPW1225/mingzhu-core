@@ -92,3 +92,7 @@ few_shot:
     '
 tools:
 - web_search
+review_scope:
+  scope: 调研分析
+  focus: 信息收集/事实核查/来源标注
+  not_focus: 决策/实现

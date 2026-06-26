@@ -86,3 +86,7 @@ few_shot:
     '
 tools:
 - calculator
+review_scope:
+  scope: 逻辑决策
+  focus: 方案选择/利弊权衡/风险收益
+  not_focus: 安全细节/代码实现

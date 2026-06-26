@@ -550,5 +550,101 @@
     "cost_yuan": 0.03445,
     "latency_ms": 1099.0,
     "ok": true
+  },
+  {
+    "timestamp": "2026-06-26 16:37:51",
+    "backend": "deepseek",
+    "model": "deepseek-v4-flash",
+    "scene": "routing",
+    "input_tokens": 54,
+    "output_tokens": 1,
+    "total_tokens": 55,
+    "cost_yuan": 2.8e-05,
+    "latency_ms": 899.9,
+    "ok": true
+  },
+  {
+    "timestamp": "2026-06-26 16:37:52",
+    "backend": "deepseek",
+    "model": "deepseek-v4-flash",
+    "scene": "routing",
+    "input_tokens": 203,
+    "output_tokens": 70,
+    "total_tokens": 273,
+    "cost_yuan": 0.000172,
+    "latency_ms": 1561.2,
+    "ok": true
+  },
+  {
+    "timestamp": "2026-06-26 16:37:55",
+    "backend": "zhipu",
+    "model": "glm-4-plus",
+    "scene": "analysis",
+    "input_tokens": 592,
+    "output_tokens": 218,
+    "total_tokens": 810,
+    "cost_yuan": 0.0405,
+    "latency_ms": 2550.7,
+    "ok": true
+  },
+  {
+    "timestamp": "2026-06-26 16:38:00",
+    "backend": "zhipu",
+    "model": "glm-4-plus",
+    "scene": "analysis",
+    "input_tokens": 705,
+    "output_tokens": 292,
+    "total_tokens": 997,
+    "cost_yuan": 0.04985,
+    "latency_ms": 5441.3,
+    "ok": true
+  },
+  {
+    "timestamp": "2026-06-26 16:38:04",
+    "backend": "zhipu",
+    "model": "glm-4-plus",
+    "scene": "analysis",
+    "input_tokens": 890,
+    "output_tokens": 249,
+    "total_tokens": 1139,
+    "cost_yuan": 0.05695,
+    "latency_ms": 3871.7,
+    "ok": true
+  },
+  {
+    "timestamp": "2026-06-26 16:38:10",
+    "backend": "zhipu",
+    "model": "glm-4-plus",
+    "scene": "default",
+    "input_tokens": 949,
+    "output_tokens": 378,
+    "total_tokens": 1327,
+    "cost_yuan": 0.06635,
+    "latency_ms": 5523.6,
+    "ok": true
+  },
+  {
+    "timestamp": "2026-06-26 16:38:11",
+    "backend": "zhipu",
+    "model": "glm-4-plus",
+    "scene": "analysis",
+    "input_tokens": 929,
+    "output_tokens": 60,
+    "total_tokens": 989,
+    "cost_yuan": 0.04945,
+    "latency_ms": 1104.1,
+    "ok": true
+  },
+  {
+    "timestamp": "2026-06-26 16:38:22",
+    "backend": "zhipu",
+    "model": "glm-4-plus",
+    "scene": "judge",
+    "input_tokens": 431,
+    "output_tokens": 68,
+    "total_tokens": 499,
+    "cost_yuan": 0.02495,
+    "latency_ms": 11163.8,
+    "ok": true
   }
 ]
