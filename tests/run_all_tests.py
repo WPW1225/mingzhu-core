@@ -129,6 +129,20 @@ def run_all_tests():
         print(f"❌ v3.0 集成测试出错：{e}")
     print()
 
+    # 8. 高强度压力测试（v3.9）
+    print(">>> 运行高强度压力测试...")
+    try:
+        from tests.test_stress import run_stress_tests
+        issues = run_stress_tests()
+        results["stress"] = {
+            "issues_found": len(issues),
+            "status": "PASS" if not issues else "FAIL",
+        }
+    except Exception as e:
+        results["stress"] = {"status": "ERROR", "error": str(e)}
+        print(f"❌ 高强度测试出错：{e}")
+    print()
+
     # 汇总
     duration = time.time() - start_time
     print("=" * 70)

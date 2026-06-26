@@ -31,11 +31,14 @@ class ConfigLoader:
         if self._loaded:
             return
 
+        # v3.9: 主人档案分离到 master_profile/ 目录
+        MASTER_DIR = PROJECT_ROOT / "master_profile"
+
         self._configs = {
             "soul": self._load_yaml(CONFIG_DIR / "soul_config.yaml"),
             "red_lines": self._load_yaml(CONFIG_DIR / "red_lines.yaml"),
-            "bazi": self._load_yaml(CONFIG_DIR / "bazi_config.yaml"),
-            "ziwei": self._load_yaml(CONFIG_DIR / "ziwei_config.yaml"),
+            "bazi": self._load_yaml(MASTER_DIR / "bazi_config.yaml"),
+            "ziwei": self._load_yaml(MASTER_DIR / "ziwei_config.yaml"),
             "personas": self._load_all_personas(),
         }
         self._loaded = True

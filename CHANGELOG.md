@@ -4,6 +4,46 @@
 
 ---
 
+## [3.9.0] - 2026-06-26
+
+### 重大变更：主人档案分离 + 并行内部讨论 + 高强度测试修复5个漏洞
+
+回答用户4个问题：进行下一步、主人档案分离、并行内部讨论、高强度测试。
+
+#### 主人档案分离（回答问题2）
+- astro/bazi/ziwei/profile 是"主人档案"不是"明烛能力"，应分离
+- 移至 `master_profile/` 目录：ASTRO.md/ASTRO_BAZI.md/PROFILE.md/bazi_config.yaml/ziwei_config.yaml
+- config_loader 和 astro_service 路径更新
+- 明烛项目只保留"能力"，主人档案独立解耦
+
+#### 并行内部讨论机制（回答问题3）
+- 新增 DISCUSS 调度策略（第5种）
+- 流程：并行独立分析（第一轮）→ 互相质疑补充（讨论轮）→ 汇总
+- `_execute_discuss` 方法：第一轮并行执行，第二轮把所有人输出喂回各人格讨论
+- 真正的"内部讨论"——不是顺序接力，而是并行+互评
+- LLM调度器自动判断何时用DISCUSS（复杂多视角问题）
+
+#### 高强度测试+修复5个漏洞（回答问题4）
+- 新增 `tests/test_stress.py`：参考SWE-bench/GAIA/PromptBench
+- 7类测试：对抗性/边界/人格边界/否决约束/性能压力
+- 发现5个对抗性攻击检测漏洞：
+  1. persona_injection（角色注入）未检测
+  2. encoding_evasion（编码逃逸）未检测
+  3. legitimate_cover（合法掩护）未检测
+  4. boundary_push（边界推进）未检测
+  5. emotional_manipulation（情感操纵）未检测
+- 修复：新增 RL008_adversarial 红线模式（7个正则）
+- 修复后 29/29 全部通过，0问题
+
+#### 下一步进展
+- 主人档案分离 ✓
+- 并行内部讨论 ✓
+- 高强度测试 ✓
+- LangGraph Cloud部署（待做）
+- 向量检索升级（待做）
+
+---
+
 ## [3.8.0] - 2026-06-26
 
 ### 重大变更：艮守否决权约束 + 人格边界 + ASTRO服务化 + RESTful API + LangGraph Studio

@@ -201,22 +201,25 @@ class MingZhuGraph:
         results = []
         prior_outputs = []  # 跨分组传递的输出摘要
 
-        # 按调度计划执行
-        for group_idx, group in enumerate(schedule.groups):
-            group_results = self._execute_group(
-                group, user_input, context, prior_outputs
-            )
-            results.extend(group_results)
-            # 收集本组输出供下一组参考
-            for r in group_results:
-                if r.get("content"):
-                    prior_outputs.append(f"{r['name']}: {r['content'][:300]}")
+        # v3.9: DISCUSS 策略——并行执行+内部讨论轮
+        if schedule.strategy == ScheduleStrategy.DISCUSS:
+            results = self._execute_discuss(persona_ids, user_input, context)
+        else:
+            # 按调度计划执行
+            for group_idx, group in enumerate(schedule.groups):
+                group_results = self._execute_group(
+                    group, user_input, context, prior_outputs
+                )
+                results.extend(group_results)
+                for r in group_results:
+                    if r.get("content"):
+                        prior_outputs.append(f"{r['name']}: {r['content'][:300]}")
 
-        # 迭代策略：如果需要且未通过审查，循环修正
-        if schedule.needs_iteration and schedule.max_iterations > 1:
-            results = self._iterative_refine(
-                results, user_input, context, schedule.max_iterations
-            )
+            # 迭代策略
+            if schedule.needs_iteration and schedule.max_iterations > 1:
+                results = self._iterative_refine(
+                    results, user_input, context, schedule.max_iterations
+                )
 
         # 记录调度策略到state（供流式输出和审计）
         return {
@@ -360,6 +363,36 @@ class MingZhuGraph:
             results = new_results
 
         return results
+
+    def _execute_discuss(self, persona_ids: List[str], user_input: str,
+                         context: str) -> List[Dict]:
+        """v3.9: 并行执行+内部讨论轮
+
+        流程：
+        1. 所有人格并行独立分析（第一轮）
+        2. 把所有人的分析喂回给各人格，让他们互相质疑/补充（讨论轮）
+        3. 返回讨论后的结果
+
+        这是真正的"内部讨论"——不是顺序接力，而是并行+互评。
+        """
+        # 第一轮：并行独立分析
+        round1 = self._execute_group(persona_ids, user_input, context, [])
+
+        # 收集第一轮所有输出
+        all_outputs = "\n---\n".join(
+            f"【{r.get('name','')}】{r.get('content','')[:400]}"
+            for r in round1 if r.get("content")
+        )
+
+        # 第二轮：讨论轮——每个人格看到其他人的分析后，质疑/补充/修正
+        discuss_context = f"{context}\n\n【第一轮各人格分析】\n{all_outputs}\n\n【讨论轮】请基于以上其他人格的分析，指出你认同/不认同的点，补充或修正自己的观点。"
+        round2 = self._execute_group(persona_ids, user_input, discuss_context, [])
+
+        # 标记这是讨论轮的结果
+        for r in round2:
+            r["discuss_round"] = 2
+
+        return round2
 
     def _maybe_call_tools(self, persona_ids: List[str], user_input: str) -> str:
         """工具集成：根据人格配置的 tools 字段，自动调用合适的工具。

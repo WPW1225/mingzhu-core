@@ -30,6 +30,7 @@ class ScheduleStrategy(str, Enum):
     SEQUENTIAL = "sequential"  # 全顺序
     MIXED = "mixed"            # 混合（先并行后顺序）
     ITERATIVE = "iterative"    # 迭代（循环修正）
+    DISCUSS = "discuss"        # v3.9: 并行执行+内部讨论轮+汇总
 
 
 @dataclass
@@ -94,6 +95,7 @@ def plan_schedule(persona_ids: List[str], user_input: str, router) -> SchedulePl
 - sequential: 有依赖关系，需接力（如调研→实现→审查）
 - mixed: 部分独立部分依赖（如先并行调研+创意，再顺序决策+审查）
 - iterative: 需要反复修正（如实现→审查→修正，循环直到通过）
+- discuss: 各人格先并行独立分析，然后互相讨论质疑，最后汇总（适合需要多视角深度探讨的复杂问题）
 
 【输出格式】严格JSON，不要其他内容：
 {{"strategy":"sequential","groups":[["xun_feng"],["zhen_zao"],["gen_shou"]],"needs_iteration":false,"reason":"调研→实现→审查有依赖关系"}}"""

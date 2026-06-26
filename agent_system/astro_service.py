@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-ASTRO_FILE = Path(__file__).parent.parent / "ASTRO.md"
+ASTRO_FILE = Path(__file__).parent.parent / "master_profile" / "ASTRO.md"
 
 
 @dataclass
