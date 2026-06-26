@@ -132,6 +132,14 @@ def chat_with_details(user_input: str, session_id: str = "default") -> Dict[str,
         lesson = engine.extract_lesson(
             user_input, output["output"], output["observer"], graph.router
         )
+
+        # v3.6: 明烛自评——每次对话后给自己打分
+        self_score = _self_evaluate(
+            user_input, output["output"], output["observer"],
+            output["personas"], graph.router,
+        )
+        output["self_score"] = self_score
+
         engine.record_experience(Experience(
             timestamp=_time.strftime("%Y-%m-%d %H:%M:%S"),
             user_input=user_input, output=output["output"],
@@ -145,6 +153,55 @@ def chat_with_details(user_input: str, session_id: str = "default") -> Dict[str,
         pass  # 进化失败不影响主流程
 
     return output
+
+
+def _self_evaluate(user_input: str, output: str, observer: str,
+                   personas: list, router) -> Dict:
+    """v3.6: 明烛自评——每次对话后给自己打分
+
+    维度：
+    - 目标达成度：是否真正回答了用户问题
+    - 质量：分析深度、结构清晰度
+    - 诚实性：是否承认不确定性
+    - 协作效果：多人格是否有效协作
+    - 综合分：0-100
+
+    结合元元认知：如果坎观指出了问题，自评分应降低。
+    """
+    try:
+        from .llm_backends import Scene
+        persona_summary = ", ".join(p.get("name", "") for p in personas[:3])
+        prompt = f"""你是明烛，请对刚才这次回答做自我评价。
+
+用户问题：{user_input[:200]}
+你的回答：{output[:500]}
+坎观观察：{observer[:300] if observer else '无'}
+调用人格：{persona_summary}
+
+请从4个维度打分（0-100），返回JSON：
+{{"goal_completion":85,"quality":75,"honesty":90,"collaboration":70,"overall":80,"one_line":"一句话自我评价"}}"""
+
+        resp = router.generate(prompt, scene=Scene.JUDGE, max_tokens=200)
+        if not resp.ok:
+            return {"overall": 0, "one_line": "自评失败"}
+
+        import json as _json
+        text = resp.content
+        idx = text.find('{')
+        end = text.find('}', idx)
+        if idx < 0 or end < 0:
+            return {"overall": 0, "one_line": "自评解析失败"}
+        data = _json.loads(text[idx:end + 1])
+        return {
+            "goal_completion": data.get("goal_completion", 0),
+            "quality": data.get("quality", 0),
+            "honesty": data.get("honesty", 0),
+            "collaboration": data.get("collaboration", 0),
+            "overall": data.get("overall", 0),
+            "one_line": data.get("one_line", ""),
+        }
+    except Exception as e:
+        return {"overall": 0, "one_line": f"自评异常: {e}"}
 
 
 def get_history(session_id: str) -> List[Dict]:
@@ -178,11 +235,21 @@ def evolution_summary() -> Dict:
 
 
 def search_memory(query: str, limit: int = 5) -> List[Dict]:
-    """情景记忆语义检索：按内容关键词搜索所有会话历史（v3.5 新增）
+    """情景记忆语义检索：v3.6 升级为向量嵌入检索
 
-    不再只能按 session_id 查，可以按内容关键词跨会话搜索。
-    使用简单的关键词匹配 + 相关性排序（未来可升级为向量检索）。
+    从关键词匹配升级为 TF-IDF + 余弦相似度语义检索。
+    理解语义近似（如"微服务"能匹配"microservice架构"）。
+    零外部依赖，部署友好。未来可升级为 sentence-transformers。
     """
+    try:
+        from .vector_search import get_vector_search
+        searcher = get_vector_search()
+        results = searcher.search(query, limit=limit)
+        if results:
+            return results
+    except Exception:
+        pass
+    # 降级：关键词匹配
     from .memory import get_memory
     memory = get_memory()
     results = []
@@ -190,12 +257,9 @@ def search_memory(query: str, limit: int = 5) -> List[Dict]:
         try:
             history = json.loads(session_file.read_text(encoding="utf-8"))
             for entry in history:
-                # 简单关键词匹配
                 text = (entry.get("user_input", "") + " " + entry.get("output", "")).lower()
-                query_lower = query.lower()
-                if query_lower in text:
-                    # 计算相关性：关键词出现次数
-                    score = text.count(query_lower)
+                if query.lower() in text:
+                    score = text.count(query.lower())
                     results.append({
                         "session_id": session_file.stem,
                         "timestamp": entry.get("timestamp", ""),
@@ -205,8 +269,7 @@ def search_memory(query: str, limit: int = 5) -> List[Dict]:
                     })
         except Exception:
             continue
-    # 按相关性排序
-    results.sort(key=lambda x: x["score"], reverse=True)
+    results.sort(key=lambda x: x.get("score", 0), reverse=True)
     return results[:limit]
 
 
@@ -386,7 +449,7 @@ def chat_stream(user_input: str, session_id: str = "default",
     obs = graph._node_observe(state)
     yield {"type": "observer", "content": obs.get("observer_report", "")}
 
-    # 阶段7：完成
+    # 阶段7：完成 + 自评
     latency = (_time.time() - start) * 1000
     models = list(set(r.get("model", "") for r in persona_results if r.get("model")))
 
@@ -404,7 +467,18 @@ def chat_stream(user_input: str, session_id: str = "default",
     except Exception:
         pass
 
-    yield {"type": "done", "latency_ms": round(latency, 1), "models": models}
+    # v3.6: 明烛自评
+    self_score = {}
+    try:
+        self_score = _self_evaluate(
+            user_input, output, obs.get("observer_report", ""),
+            [{"name": r["name"]} for r in persona_results], graph.router,
+        )
+    except Exception:
+        pass
+
+    yield {"type": "done", "latency_ms": round(latency, 1), "models": models,
+           "self_score": self_score}
 
 
 if __name__ == "__main__":

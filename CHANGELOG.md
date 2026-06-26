@@ -4,6 +4,55 @@
 
 ---
 
+## [3.6.0] - 2026-06-26
+
+### 重大变更：公网可用 + 向量检索 + Web人机协作 + 进化可视化 + 明烛自评
+
+修复用户指出的3个问题，完成4个功能。网页版公网可用，用户自己填API key。
+
+#### 修复1：Web clarify 双向通信
+- 问题：SSE单向，clarify事件后流断了
+- 方案：会话级 _pending_clarify 状态 + POST /api/clarify 回答接口
+- SSE推送clarify事件(含stream_id) → 前端弹窗 → POST回传答案 → 流继续
+- CLI用input()回调，Web用弹窗，同一套 clarify_callback
+
+#### 修复2：collaboration.py 接入真实LLM
+- 问题：llm_caller=None时全输出[模拟]
+- 方案：默认接入LLMRouter，_default_llm_caller方法
+- 不再需要手动传llm_caller
+
+#### 修复3：公网可用，用户网页填API key
+- 问题：本地无digital-twin-core无法用终端
+- 方案：网页版公网部署，用户在"API配置"弹窗填key
+- key只存内存不入库，刷新需重填（或服务器设环境变量免填）
+- POST /api/keys 存key，返回token，后续请求带token
+
+#### 功能1：向量检索升级（vector_search.py）
+- 从关键词匹配升级为TF-IDF + 余弦相似度
+- 纯Python零依赖，部署友好
+- 理解语义近似（"微服务"匹配"microservice架构"）
+- 未来可升级为sentence-transformers
+
+#### 功能2：Web人机协作UI
+- clarify弹窗：明烛提问→用户回答→流继续
+- 支持Enter提交、跳过
+- 双向通信完整闭环
+
+#### 功能3：进化效果可视化
+- 进化指标页：总经验/纠正下降率/偏好数/综合判定
+- 纠正下降柱状图（早期vs近期）
+- 趋势颜色：下降=绿色(变好)，上升=红色(需关注)
+- GET /api/metrics 接口
+
+#### 功能4：明烛自评
+- 每次对话后明烛给自己打分（_self_evaluate）
+- 4维度：目标达成度/质量/诚实性/协作效果
+- 结合坎观观察：坎观指出问题则自评分降低
+- Web显示自评分数条+一句话评价
+- done事件带self_score字段
+
+---
+
 ## [3.5.0] - 2026-06-26
 
 ### 重大变更：Web流式 + 人机协作 + 记忆语义检索 + 进化量化

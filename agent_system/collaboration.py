@@ -104,9 +104,23 @@ class CollaborationProtocol:
         """
         Args:
             llm_caller: LLM调用函数 (prompt: str, system: str) -> str
+                        v3.6: 为None时自动接入 LLMRouter
         """
         self.llm_caller = llm_caller
         self.messages: List[CollaborationMessage] = []
+        # v3.6: 默认接入 LLMRouter
+        if llm_caller is None:
+            self.llm_caller = self._default_llm_caller
+
+    def _default_llm_caller(self, prompt: str, system: str = "") -> str:
+        """v3.6: 默认LLM调用（接入LLMRouter）"""
+        try:
+            from .llm_backends import get_router, Scene
+            router = get_router()
+            resp = router.generate(prompt, system_prompt=system, scene=Scene.ANALYSIS)
+            return resp.content if resp.ok else f"[LLM调用失败: {resp.error}]"
+        except Exception as e:
+            return f"[LLM异常: {e}]"
 
     def execute(self, task: str, pipeline: Optional[List] = None) -> CollaborationResult:
         """执行多人格协作任务"""

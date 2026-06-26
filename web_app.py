@@ -17,6 +17,8 @@ FastAPI + 单页 HTML，一个文件搞定。
 import sys
 import os
 import json
+import uuid
+import time
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -29,15 +31,31 @@ from typing import Optional
 from agent_system.api import (
     chat_with_details, get_history,
     list_sessions, clear_session, cost_summary, evolution_summary,
-    chat_stream,
+    chat_stream, search_memory, evolution_metrics,
 )
 
-app = FastAPI(title="明烛 Web", version="3.5")
+app = FastAPI(title="明烛 Web", version="3.6")
+
+# v3.6: 会话级 API key 存储（用户网页填，不入库）
+_user_keys = {}
+# v3.6: pending clarify 状态（双向通信）
+_pending_clarify = {}
 
 
 class ChatRequest(BaseModel):
     message: str
     session_id: str = "default"
+    token: Optional[str] = None
+
+
+class KeyRequest(BaseModel):
+    zhipu_key: str = ""
+    deepseek_key: str = ""
+
+
+class ClarifyRequest(BaseModel):
+    stream_id: str
+    answer: str
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -45,9 +63,34 @@ async def index():
     return HTML_PAGE
 
 
+@app.post("/api/keys")
+async def set_keys(req: KeyRequest):
+    """v3.6: 用户设置 API key（存内存，不入库）"""
+    token = str(uuid.uuid4())[:8]
+    _user_keys[token] = {"zhipu_key": req.zhipu_key, "deepseek_key": req.deepseek_key}
+    return JSONResponse({"token": token, "ok": True})
+
+
+@app.get("/api/keys/status")
+async def keys_status():
+    return JSONResponse({
+        "env_zhipu": bool(os.environ.get("ZHIPU_API_KEY")),
+        "env_deepseek": bool(os.environ.get("DEEPSEEK_API_KEY")),
+    })
+
+
+def _apply_user_keys(token: Optional[str]):
+    if token and token in _user_keys:
+        keys = _user_keys[token]
+        if keys["zhipu_key"]:
+            os.environ["ZHIPU_API_KEY"] = keys["zhipu_key"]
+        if keys["deepseek_key"]:
+            os.environ["DEEPSEEK_API_KEY"] = keys["deepseek_key"]
+
+
 @app.post("/api/chat")
 async def api_chat(req: ChatRequest):
-    """对话接口（非流式，兼容旧版）"""
+    _apply_user_keys(req.token)
     try:
         result = chat_with_details(req.message, session_id=req.session_id)
         return JSONResponse(result)
@@ -57,18 +100,27 @@ async def api_chat(req: ChatRequest):
 
 @app.post("/api/chat/stream")
 async def api_chat_stream(req: ChatRequest):
-    """对话接口（SSE 流式，v3.5 新增）
+    """v3.6: SSE 流式 + clarify 双向通信"""
+    _apply_user_keys(req.token)
+    stream_id = str(uuid.uuid4())[:8]
 
-    返回 text/event-stream，每个事件格式：
-    data: {"type":"routing","personas":["乾断"]}\\n\\n
-    data: {"type":"schedule","strategy":"sequential"}\\n\\n
-    data: {"type":"persona_done","name":"乾断","content":"..."}\\n\\n
-    data: {"type":"output","content":"最终回复"}\\n\\n
-    data: {"type":"done"}\\n\\n
-    """
+    def clarify_callback(question: str) -> str:
+        _pending_clarify[stream_id] = {"question": question, "answer": "", "answered": False}
+        for _ in range(60):  # 最多等30秒
+            time.sleep(0.5)
+            if _pending_clarify[stream_id]["answered"]:
+                answer = _pending_clarify[stream_id]["answer"]
+                _pending_clarify.pop(stream_id, None)
+                return answer
+        _pending_clarify.pop(stream_id, None)
+        return ""
+
     def event_generator():
         try:
-            for event in chat_stream(req.message, session_id=req.session_id):
+            for event in chat_stream(req.message, session_id=req.session_id,
+                                     clarify_callback=clarify_callback):
+                if event.get("type") == "clarify":
+                    event["stream_id"] = stream_id
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
             yield "data: {\"type\":\"done\"}\n\n"
         except Exception as e:
@@ -79,6 +131,29 @@ async def api_chat_stream(req: ChatRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post("/api/clarify")
+async def api_clarify(req: ClarifyRequest):
+    """v3.6: 用户回传 clarify 答案"""
+    if req.stream_id in _pending_clarify:
+        _pending_clarify[req.stream_id]["answer"] = req.answer
+        _pending_clarify[req.stream_id]["answered"] = True
+        return JSONResponse({"ok": True})
+    return JSONResponse({"ok": False, "error": "stream_id 不存在或已过期"}, status_code=404)
+
+
+@app.get("/api/metrics")
+async def api_metrics():
+    """v3.6: 进化效果量化"""
+    return JSONResponse(evolution_metrics())
+
+
+@app.post("/api/search")
+async def api_search(req: ChatRequest):
+    """v3.6: 记忆语义检索"""
+    results = search_memory(req.message)
+    return JSONResponse(results)
 
 
 @app.get("/api/sessions")
@@ -164,6 +239,31 @@ body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
 .cost-panel.show { display:block; }
 .cost-total { font-size:18px; color:#f59e0b; font-weight:600; }
 .typing { color:#71717a; font-style:italic; }
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); display:none; align-items:center; justify-content:center; z-index:200; }
+.modal-overlay.show { display:flex; }
+.modal { background:#181a20; border:1px solid #3f3f46; border-radius:12px; padding:24px; max-width:440px; width:90%; }
+.modal h3 { font-size:16px; color:#f59e0b; margin-bottom:16px; }
+.modal input { width:100%; background:#27272a; border:1px solid #3f3f46; color:#e4e4e7; padding:10px 12px; border-radius:6px; font-size:13px; margin-bottom:12px; }
+.modal input:focus { outline:none; border-color:#f59e0b; }
+.modal label { font-size:12px; color:#71717a; display:block; margin-bottom:4px; }
+.modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+.clarify-modal { border-color:#f59e0b; }
+.clarify-question { font-size:14px; color:#e4e4e7; margin-bottom:12px; line-height:1.6; }
+.self-score { margin-top:8px; padding:8px 12px; background:#1a1a2e; border-left:3px solid #f59e0b; font-size:12px; border-radius:0 6px 6px 0; }
+.self-score-bar { height:6px; background:#27272a; border-radius:3px; margin-top:4px; overflow:hidden; }
+.self-score-fill { height:100%; background:linear-gradient(90deg,#ef4444,#f59e0b,#22c55e); border-radius:3px; }
+.metrics-page { padding:24px; max-width:800px; margin:0 auto; display:none; }
+.metrics-page.show { display:block; }
+.metric-card { background:#181a20; border:1px solid #3f3f46; border-radius:8px; padding:16px; margin-bottom:12px; }
+.metric-card h4 { font-size:13px; color:#71717a; margin-bottom:8px; }
+.metric-value { font-size:28px; color:#f59e0b; font-weight:600; }
+.metric-trend { font-size:12px; margin-top:4px; }
+.trend-up { color:#22c55e; }
+.trend-down { color:#ef4444; }
+.chart-bar { display:flex; align-items:end; gap:4px; height:80px; margin-top:12px; }
+.bar { flex:1; background:#f59e0b; border-radius:2px 2px 0 0; min-height:4px; transition:height 0.3s; }
+.stream-step { font-size:12px; color:#a1a1aa; padding:2px 0 2px 8px; border-left:2px solid #3f3f46; margin:2px 0; }
+.stream-output { font-size:14px; line-height:1.7; white-space:pre-wrap; margin-top:8px; }
 </style>
 </head>
 <body>
@@ -175,11 +275,13 @@ body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
   <div class="sidebar-nav">
     <div class="nav-item active" onclick="showChat()"><span class="nav-icon">💬</span> 对话</div>
     <div class="nav-item" onclick="showSessions()"><span class="nav-icon">📋</span> 历史会话</div>
+    <div class="nav-item" onclick="showMetrics()"><span class="nav-icon">📈</span> 进化指标</div>
     <div class="nav-item" onclick="showCost()"><span class="nav-icon">💰</span> 成本统计</div>
+    <div class="nav-item" onclick="showKeyModal()"><span class="nav-icon">🔑</span> API配置</div>
     <div class="nav-item" onclick="newSession()"><span class="nav-icon">✨</span> 新会话</div>
   </div>
   <div class="sidebar-footer">
-    v3.2 · LangGraph + 双LLM<br>智谱GLM + DeepSeek
+    v3.6 · LangGraph + 双LLM<br>智谱GLM + DeepSeek
   </div>
 </div>
 
@@ -196,9 +298,14 @@ body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
     <div class="message">
       <div class="msg-bubble" style="background:#1c1917;border:1px solid #3f3f46;text-align:center;color:#71717a;">
         明烛已就绪。输入你的问题开始对话。<br><br>
-        <span style="font-size:12px;">支持多轮记忆 · 工具调用 · 坎观审查 · 成本监控</span>
+        <span style="font-size:12px;">支持多轮记忆 · 工具调用 · 坎观审查 · 人机协作 · 自我进化</span>
       </div>
     </div>
+  </div>
+
+  <div class="metrics-page" id="metrics-page">
+    <h2 style="color:#f59e0b;margin-bottom:16px;">📈 进化效果量化</h2>
+    <div id="metrics-content">加载中...</div>
   </div>
 
   <div class="input-area">
@@ -212,9 +319,137 @@ body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
 
 <div class="cost-panel" id="cost-panel"></div>
 
+<!-- v3.6: API key 配置弹窗 -->
+<div class="modal-overlay" id="key-modal">
+  <div class="modal">
+    <h3>🔑 API Key 配置</h3>
+    <p style="font-size:12px;color:#71717a;margin-bottom:16px;">key 只存在内存中，不入库，刷新后需重新填写。或服务器设环境变量可免填。</p>
+    <label>智谱 API Key（必需）</label>
+    <input id="zhipu-key-input" placeholder="7cabdd25... 或留空用环境变量">
+    <label>DeepSeek API Key（可选，省钱）</label>
+    <input id="deepseek-key-input" placeholder="sk-... 或留空">
+    <div class="modal-actions">
+      <button class="send-btn" onclick="saveKeys()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- v3.6: clarify 弹窗 -->
+<div class="modal-overlay" id="clarify-modal">
+  <div class="modal clarify-modal">
+    <h3>❓ 明烛想确认</h3>
+    <div class="clarify-question" id="clarify-question"></div>
+    <input id="clarify-answer" placeholder="输入你的回答..." onkeydown="if(event.key==='Enter')submitClarify()">
+    <div class="modal-actions">
+      <button class="send-btn" onclick="submitClarify()">回答</button>
+      <button class="send-btn" style="background:#52525b;" onclick="skipClarify()">跳过</button>
+    </div>
+  </div>
+</div>
+
 <script>
 let sessionId = 'default';
 let sending = false;
+let userToken = null;
+let pendingClarifyStreamId = null;
+
+// v3.6: API key 管理
+async function saveKeys() {
+  const zhipu = document.getElementById('zhipu-key-input').value.trim();
+  const deepseek = document.getElementById('deepseek-key-input').value.trim();
+  const resp = await fetch('/api/keys', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({zhipu_key:zhipu, deepseek_key:deepseek})
+  });
+  const data = await resp.json();
+  userToken = data.token;
+  document.getElementById('key-modal').classList.remove('show');
+  if (zhipu) addMessage('mingzhu', '✅ API Key 已配置，可以开始对话了');
+}
+function showKeyModal() { document.getElementById('key-modal').classList.add('show'); }
+
+// v3.6: clarify 双向通信
+function showClarify(question, streamId) {
+  pendingClarifyStreamId = streamId;
+  document.getElementById('clarify-question').textContent = question;
+  document.getElementById('clarify-answer').value = '';
+  document.getElementById('clarify-modal').classList.add('show');
+  document.getElementById('clarify-answer').focus();
+}
+async function submitClarify() {
+  const answer = document.getElementById('clarify-answer').value.trim();
+  if (pendingClarifyStreamId) {
+    await fetch('/api/clarify', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({stream_id:pendingClarifyStreamId, answer:answer})
+    });
+  }
+  document.getElementById('clarify-modal').classList.remove('show');
+  pendingClarifyStreamId = null;
+}
+async function skipClarify() {
+  if (pendingClarifyStreamId) {
+    await fetch('/api/clarify', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({stream_id:pendingClarifyStreamId, answer:''})
+    });
+  }
+  document.getElementById('clarify-modal').classList.remove('show');
+  pendingClarifyStreamId = null;
+}
+
+// v3.6: 进化指标页
+async function showMetrics() {
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  event.target.closest('.nav-item').classList.add('active');
+  document.getElementById('view-title').textContent = '进化指标';
+  document.getElementById('chat-area').style.display = 'none';
+  document.querySelector('.input-area').style.display = 'none';
+  document.getElementById('metrics-page').classList.add('show');
+  const resp = await fetch('/api/metrics');
+  const data = await resp.json();
+  renderMetrics(data);
+}
+function renderMetrics(data) {
+  const c = document.getElementById('metrics-content');
+  if (data.status === 'no_data') {
+    c.innerHTML = '<div class="metric-card"><p>'+data.message+'</p></div>';
+    return;
+  }
+  const trendClass = data.correction_trend.includes('下降') ? 'trend-up' : 'trend-down';
+  c.innerHTML = `
+    <div class="metric-card">
+      <h4>总经验数</h4>
+      <div class="metric-value">${data.total_experiences}</div>
+      <div class="metric-trend">可复用教训：${data.reusable_lessons}（复用率${data.reuse_rate*100}%）</div>
+    </div>
+    <div class="metric-card">
+      <h4>纠正下降率（是否越用越好）</h4>
+      <div class="metric-value">${(data.recent_correction_rate*100).toFixed(0)}%</div>
+      <div class="metric-trend ${trendClass}">早期${(data.early_correction_rate*100).toFixed(0)}% → 近期${(data.recent_correction_rate*100).toFixed(0)}% · ${data.correction_trend}</div>
+      <div class="chart-bar">
+        <div class="bar" style="height:${data.early_correction_rate*100}%;background:#ef4444;" title="早期"></div>
+        <div class="bar" style="height:${data.recent_correction_rate*100}%;background:#22c55e;" title="近期"></div>
+      </div>
+    </div>
+    <div class="metric-card">
+      <h4>学到的偏好</h4>
+      <div class="metric-value">${data.preferences_learned}</div>
+      <div class="metric-trend">元元认知均分：${data.avg_meta_cognition_score}</div>
+    </div>
+    <div class="metric-card">
+      <h4>综合判定</h4>
+      <div class="metric-value" style="font-size:18px;">${data.verdict}</div>
+    </div>`;
+}
+function showChat() {
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  event.target.closest('.nav-item').classList.add('active');
+  document.getElementById('view-title').textContent = '对话';
+  document.getElementById('chat-area').style.display = 'block';
+  document.querySelector('.input-area').style.display = 'block';
+  document.getElementById('metrics-page').classList.remove('show');
+}
 
 function handleKey(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
@@ -242,7 +477,7 @@ async function send() {
   try {
     const resp = await fetch('/api/chat/stream', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({message:msg, session_id:sessionId})
+      body: JSON.stringify({message:msg, session_id:sessionId, token:userToken})
     });
     
     const reader = resp.body.getReader();
@@ -266,6 +501,9 @@ async function send() {
             progressHtml += `<div class="stream-step">⚙️ 调度: ${event.strategy}</div>`;
           } else if (event.type === 'tool') {
             progressHtml += `<div class="stream-step">🔧 ${event.info}</div>`;
+          } else if (event.type === 'clarify') {
+            // v3.6: 人机协作——弹窗收集回答
+            showClarify(event.question, event.stream_id);
           } else if (event.type === 'persona_done') {
             const conf = event.confidence || '';
             progressHtml += `<div class="stream-step">✦ ${event.name} [${conf}] ${event.content.substring(0,60)}...</div>`;
@@ -277,6 +515,11 @@ async function send() {
             if (event.content) metaHtml += `<div class="msg-observer">👁 坎观：${event.content.substring(0,300)}</div>`;
           } else if (event.type === 'done') {
             if (event.latency_ms) metaHtml = `<div class="msg-meta">${event.latency_ms}ms${event.models?' · '+event.models.join(','):''}</div>` + metaHtml;
+            // v3.6: 自评显示
+            if (event.self_score && event.self_score.overall) {
+              const s = event.self_score;
+              metaHtml += `<div class="self-score">🪞 明烛自评：${s.overall}分 · ${s.one_line}<div class="self-score-bar"><div class="self-score-fill" style="width:${s.overall}%"></div></div></div>`;
+            }
           }
           // 更新显示
           bubbleEl.innerHTML = progressHtml + (finalOutput ? '<hr style="border-color:#3f3f46"><div class="stream-output">'+finalOutput+'</div>' : '') + metaHtml;
