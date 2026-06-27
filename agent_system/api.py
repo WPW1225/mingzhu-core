@@ -221,6 +221,69 @@ def get_history(session_id: str) -> List[Dict]:
     return get_memory().load_session(session_id)
 
 
+def estimate_cost(user_input: str) -> Dict:
+    """v4.5: 成本预估——执行前预估token和费用
+
+    根据输入长度和预估人格数，估算本次对话成本。
+    企业客户不怕花钱，怕月底账单吓一跳——透明化是卖点。
+    """
+    from .execution_strategy import select_strategy, ExecutionStrategyType
+    from .cost_monitor import PRICING
+
+    strategy = select_strategy(user_input)
+    # 预估人格数：简单任务2-3个，复杂4-5个
+    input_len = len(user_input)
+    if input_len < 20:
+        persona_count = 2
+    elif input_len < 50:
+        persona_count = 3
+    else:
+        persona_count = 4
+
+    # 预估token：每人格 system_prompt(800) + 输入(200) + 输出(800) ≈ 1800
+    # ReAct策略多3-5轮工具调用，每轮+500
+    tokens_per_persona = 1800
+    if strategy == ExecutionStrategyType.REACT:
+        tokens_per_persona = 3500  # ReAct多轮
+
+    total_tokens = persona_count * tokens_per_persona
+    # 按智谱glm-4-plus定价估算
+    cost = (total_tokens / 1000) * PRICING.get("glm-4-plus", {}).get("input", 0.05)
+
+    return {
+        "strategy": strategy.value,
+        "estimated_personas": persona_count,
+        "estimated_tokens": total_tokens,
+        "estimated_cost_yuan": round(cost, 4),
+        "model": "glm-4-plus",
+        "warning": "ReAct策略成本较高" if strategy == ExecutionStrategyType.REACT else None,
+    }
+
+
+def get_agents_status() -> Dict:
+    """v4.5: 获取所有agent状态（戊土/甲木/进化/成本）"""
+    status = {}
+    try:
+        from .wu_tu import get_wu_tu
+        status["wu_tu"] = get_wu_tu().get_status()
+    except Exception:
+        status["wu_tu"] = {"error": "unavailable"}
+    try:
+        from .jia_mu import get_jia_mu
+        status["jia_mu"] = get_jia_mu().get_status()
+    except Exception:
+        status["jia_mu"] = {"error": "unavailable"}
+    try:
+        status["evolution"] = evolution_metrics()
+    except Exception:
+        status["evolution"] = {"error": "unavailable"}
+    try:
+        status["cost"] = cost_summary()
+    except Exception:
+        status["cost"] = {"error": "unavailable"}
+    return status
+
+
 def list_sessions() -> List[Dict]:
     """列出所有历史会话"""
     from .memory import get_memory

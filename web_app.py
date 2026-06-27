@@ -32,6 +32,7 @@ from agent_system.api import (
     chat_with_details, get_history,
     list_sessions, clear_session, cost_summary, evolution_summary,
     chat_stream, search_memory, evolution_metrics,
+    estimate_cost, get_agents_status,
 )
 
 app = FastAPI(title="明烛 Web", version="3.6")
@@ -208,6 +209,19 @@ async def v1_search(query: str):
     return JSONResponse(search_memory(query))
 
 
+# v4.5: 成本预估 + agent状态
+@app.post("/api/v1/estimate")
+async def v1_estimate(req: ChatRequest):
+    """POST /api/v1/estimate - 执行前成本预估"""
+    return JSONResponse(estimate_cost(req.message))
+
+
+@app.get("/api/v1/agents/status")
+async def v1_agents_status():
+    """GET /api/v1/agents/status - 所有agent状态"""
+    return JSONResponse(get_agents_status())
+
+
 @app.get("/api/sessions")
 async def api_sessions():
     """列出所有会话"""
@@ -328,6 +342,7 @@ body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
     <div class="nav-item active" onclick="showChat()"><span class="nav-icon">💬</span> 对话</div>
     <div class="nav-item" onclick="showSessions()"><span class="nav-icon">📋</span> 历史会话</div>
     <div class="nav-item" onclick="showMetrics()"><span class="nav-icon">📈</span> 进化指标</div>
+    <div class="nav-item" onclick="showAgents()"><span class="nav-icon">🤖</span> Agent状态</div>
     <div class="nav-item" onclick="showCost()"><span class="nav-icon">💰</span> 成本统计</div>
     <div class="nav-item" onclick="showKeyModal()"><span class="nav-icon">🔑</span> API配置</div>
     <div class="nav-item" onclick="newSession()"><span class="nav-icon">✨</span> 新会话</div>
@@ -360,10 +375,16 @@ body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
     <div id="metrics-content">加载中...</div>
   </div>
 
+  <div class="metrics-page" id="agents-page">
+    <h2 style="color:#f59e0b;margin-bottom:16px;">🤖 Agent状态</h2>
+    <div id="agents-content">加载中...</div>
+  </div>
+
   <div class="input-area">
+    <div id="cost-estimate" style="max-width:760px;margin:0 auto 8px;font-size:12px;color:#a1a1aa;background:#1c1917;padding:6px 12px;border-radius:6px;display:none;"></div>
     <div class="input-wrap">
       <textarea class="input-box" id="input" placeholder="输入消息...（Enter发送，Shift+Enter换行）" 
-                onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+                onkeydown="handleKey(event)" oninput="autoResize(this);estimateCost()"></textarea>
       <button class="send-btn" id="send-btn" onclick="send()">发送</button>
     </div>
   </div>
@@ -501,6 +522,56 @@ function showChat() {
   document.getElementById('chat-area').style.display = 'block';
   document.querySelector('.input-area').style.display = 'block';
   document.getElementById('metrics-page').classList.remove('show');
+  document.getElementById('agents-page').classList.remove('show');
+}
+
+// v4.5: Agent状态页
+async function showAgents() {
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  event.target.closest('.nav-item').classList.add('active');
+  document.getElementById('view-title').textContent = 'Agent状态';
+  document.getElementById('chat-area').style.display = 'none';
+  document.querySelector('.input-area').style.display = 'none';
+  document.getElementById('metrics-page').classList.remove('show');
+  document.getElementById('agents-page').classList.add('show');
+  const resp = await fetch('/api/v1/agents/status');
+  const data = await resp.json();
+  renderAgents(data);
+}
+function renderAgents(data) {
+  const wt = data.wu_tu || {};
+  const jm = data.jia_mu || {};
+  const evo = data.evolution || {};
+  const cost = data.cost || {};
+  document.getElementById('agents-content').innerHTML = `
+    <div class="metric-card"><h4>🏔️ 戊土·记忆官</h4>
+      <div>会话数: ${wt.total_sessions||0} | 记忆条数: ${wt.total_memories||0} | 遗忘阈值: ${wt.forget_threshold||50}</div>
+    </div>
+    <div class="metric-card"><h4>🌳 甲木·学习官</h4>
+      <div>知识条数: ${jm.total_knowledge||0}</div>
+      <div style="font-size:12px;color:#71717a;margin-top:4px;">主题: ${(jm.topics||[]).join(', ')||'无'}</div>
+    </div>
+    <div class="metric-card"><h4>🧬 进化系统</h4>
+      <div>总经验: ${evo.total_experiences||0} | 纠正率: ${(evo.recent_correction_rate*100||0).toFixed(0)}% | ${evo.correction_trend||'-'}</div>
+    </div>
+    <div class="metric-card"><h4>💰 成本</h4>
+      <div>总调用: ${cost.total_calls||0} | 总费用: ¥${cost.total_cost||0} | 总token: ${cost.total_tokens||0}</div>
+    </div>`;
+}
+
+// v4.5: 成本预估（输入时实时显示）
+async function estimateCost() {
+  const input = document.getElementById('input');
+  const msg = input.value.trim();
+  const est = document.getElementById('cost-estimate');
+  if (msg.length < 5) { est.style.display='none'; return; }
+  const resp = await fetch('/api/v1/estimate', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({message:msg, session_id:sessionId})
+  });
+  const data = await resp.json();
+  est.style.display = 'block';
+  est.innerHTML = `📊 预估: ${data.strategy}策略 | ${data.estimated_personas}人格 | ~${data.estimated_tokens}tokens | ¥${data.estimated_cost_yuan}${data.warning?' ⚠️ '+data.warning:''}`;
 }
 
 function handleKey(e) {
