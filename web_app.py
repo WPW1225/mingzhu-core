@@ -543,19 +543,45 @@ function renderAgents(data) {
   const jm = data.jia_mu || {};
   const evo = data.evolution || {};
   const cost = data.cost || {};
+  const personas = data.personas || [];
+  const ceo = data.ceo || {};
+  const meta = data.meta_cognition || {};
+  const ls = data.langsmith || {};
+
+  // 8个执行人格卡片
+  let personasHtml = personas.map(p =>
+    `<span class="persona-tag" title="${p.element}">${p.icon} ${p.name}</span>`
+  ).join('');
+
   document.getElementById('agents-content').innerHTML = `
+    <div class="metric-card"><h4>👑 ${ceo.role}</h4>
+      <div style="font-size:13px;">
+        5阶段: ${ceo.phases?.join(' → ') || '-'}<br>
+        策略: ${ceo.strategies?.join(' / ') || '-'}
+      </div>
+    </div>
+    <div class="metric-card"><h4>🎯 8个执行人格（MoE）</h4>
+      <div style="margin-top:8px;">${personasHtml || '加载中'}</div>
+    </div>
     <div class="metric-card"><h4>🏔️ 戊土·记忆官</h4>
-      <div>会话数: ${wt.total_sessions||0} | 记忆条数: ${wt.total_memories||0} | 遗忘阈值: ${wt.forget_threshold||50}</div>
+      <div>会话: ${wt.total_sessions||0} | 记忆: ${wt.total_memories||0} | 遗忘阈值: ${wt.forget_threshold||50}</div>
     </div>
     <div class="metric-card"><h4>🌳 甲木·学习官</h4>
-      <div>知识条数: ${jm.total_knowledge||0}</div>
+      <div>知识: ${jm.total_knowledge||0} 条</div>
       <div style="font-size:12px;color:#71717a;margin-top:4px;">主题: ${(jm.topics||[]).join(', ')||'无'}</div>
     </div>
     <div class="metric-card"><h4>🧬 进化系统</h4>
-      <div>总经验: ${evo.total_experiences||0} | 纠正率: ${(evo.recent_correction_rate*100||0).toFixed(0)}% | ${evo.correction_trend||'-'}</div>
+      <div>经验: ${evo.total_experiences||0} | 纠正率: ${(evo.recent_correction_rate*100||0).toFixed(0)}% | ${evo.correction_trend||'-'}</div>
+    </div>
+    <div class="metric-card"><h4>🪞 元元认知</h4>
+      <div>${meta.available ? '已启用' : '未启用'} | 维度: ${(meta.dimensions||[]).join('/')}</div>
     </div>
     <div class="metric-card"><h4>💰 成本</h4>
-      <div>总调用: ${cost.total_calls||0} | 总费用: ¥${cost.total_cost||0} | 总token: ${cost.total_tokens||0}</div>
+      <div>调用: ${cost.total_calls||0}次 | 费用: ¥${cost.total_cost||0} | token: ${cost.total_tokens||0}</div>
+    </div>
+    <div class="metric-card"><h4>📊 LangSmith</h4>
+      <div>${ls.enabled ? '✅ 已启用' : '❌ 未配置'} | 项目: ${ls.project||'-'}
+      ${ls.enabled ? `<br><a href="${ls.url}" target="_blank" style="color:#f59e0b;">→ 打开LangSmith</a>` : ''}</div>
     </div>`;
 }
 

@@ -9,8 +9,8 @@
     ],
     "routed_personas": [
       "kan_guan",
-      "li_ming",
-      "qian_duan"
+      "qian_duan",
+      "li_ming"
     ],
     "overlap": [
       "li_ming"
@@ -24,15 +24,15 @@
     "description": "推理：权衡分析",
     "input": "分析一下这个方案的利弊：微服务架构vs单体架构",
     "expected_personas": [
-      "xun_feng",
-      "qian_duan"
+      "qian_duan",
+      "xun_feng"
     ],
     "routed_personas": [
-      "kan_guan",
-      "zhen_zao",
-      "qian_duan",
       "li_ming",
-      "gen_shou"
+      "zhen_zao",
+      "gen_shou",
+      "kan_guan",
+      "qian_duan"
     ],
     "overlap": [
       "qian_duan"
@@ -50,8 +50,8 @@
     ],
     "routed_personas": [
       "kan_guan",
-      "li_ming",
       "gen_shou",
+      "li_ming",
       "zhen_zao"
     ],
     "overlap": [
@@ -85,13 +85,13 @@
     "description": "安全审查：代码审计",
     "input": "审查这段代码的安全性：eval(user_input)",
     "expected_personas": [
-      "gen_shou",
-      "zhen_zao"
+      "zhen_zao",
+      "gen_shou"
     ],
     "routed_personas": [
       "kan_guan",
-      "li_ming",
       "gen_shou",
+      "li_ming",
       "zhen_zao"
     ],
     "overlap": [
@@ -111,8 +111,8 @@
     ],
     "routed_personas": [
       "kan_guan",
-      "li_ming",
-      "dui_ze"
+      "dui_ze",
+      "li_ming"
     ],
     "overlap": [
       "dui_ze"
@@ -130,8 +130,8 @@
     ],
     "routed_personas": [
       "kan_guan",
-      "li_ming",
       "gen_shou",
+      "li_ming",
       "zhen_zao"
     ],
     "overlap": [
@@ -149,11 +149,11 @@
       "kun_zai"
     ],
     "routed_personas": [
-      "kan_guan",
+      "li_ming",
       "zhen_zao",
       "kun_zai",
-      "li_ming",
-      "gen_shou"
+      "gen_shou",
+      "kan_guan"
     ],
     "overlap": [
       "kun_zai"
@@ -170,11 +170,11 @@
       "kan_guan"
     ],
     "routed_personas": [
-      "kan_guan",
-      "qian_duan",
-      "kun_zai",
       "li_ming",
-      "gen_shou"
+      "kun_zai",
+      "gen_shou",
+      "kan_guan",
+      "qian_duan"
     ],
     "overlap": [
       "kan_guan"
@@ -189,21 +189,21 @@
     "input": "设计并实现一个用户认证系统，需要调研、架构、安全审查",
     "expected_personas": [
       "gen_shou",
-      "xun_feng",
-      "zhen_zao",
-      "kun_zai"
-    ],
-    "routed_personas": [
-      "kan_guan",
-      "xun_feng",
-      "zhen_zao",
-      "li_ming",
-      "gen_shou"
-    ],
-    "overlap": [
-      "gen_shou",
+      "kun_zai",
       "xun_feng",
       "zhen_zao"
+    ],
+    "routed_personas": [
+      "li_ming",
+      "xun_feng",
+      "zhen_zao",
+      "gen_shou",
+      "kan_guan"
+    ],
+    "overlap": [
+      "zhen_zao",
+      "xun_feng",
+      "gen_shou"
     ],
     "has_observer": true,
     "status": "PASS"

@@ -261,26 +261,61 @@ def estimate_cost(user_input: str) -> Dict:
 
 
 def get_agents_status() -> Dict:
-    """v4.5: 获取所有agent状态（戊土/甲木/进化/成本）"""
+    """v4.7: 获取所有agent状态（全状态面板）"""
     status = {}
+    # 戊土·记忆官
     try:
         from .wu_tu import get_wu_tu
         status["wu_tu"] = get_wu_tu().get_status()
     except Exception:
         status["wu_tu"] = {"error": "unavailable"}
+    # 甲木·学习官
     try:
         from .jia_mu import get_jia_mu
         status["jia_mu"] = get_jia_mu().get_status()
     except Exception:
         status["jia_mu"] = {"error": "unavailable"}
+    # 进化系统
     try:
         status["evolution"] = evolution_metrics()
     except Exception:
         status["evolution"] = {"error": "unavailable"}
+    # 成本
     try:
         status["cost"] = cost_summary()
     except Exception:
         status["cost"] = {"error": "unavailable"}
+    # v4.7: 8个执行人格清单
+    try:
+        from . import PERSONAS
+        status["personas"] = [
+            {"id": pid, "name": p["name"], "icon": p["icon"],
+             "element": {"wood": "木·用神", "fire": "火·用神", "earth": "土·喜神",
+                         "water": "水·忌神", "metal": "金·忌神"}.get(
+                __import__("agent_system").TRIGRAM_ELEMENT.get(pid, "earth"), "")}
+            for pid, p in PERSONAS.items()
+        ]
+    except Exception:
+        status["personas"] = []
+    # v4.7: CEO状态（当前阶段+策略）
+    status["ceo"] = {
+        "role": "CEO·明烛主人格",
+        "phases": ["initiation", "planning", "execution", "review", "retrospective"],
+        "strategies": ["pipeline", "react", "parallel", "sequential", "mixed", "discuss", "iterative"],
+    }
+    # v4.7: 元元认知
+    try:
+        from .meta_cognition import evaluate_reflection
+        status["meta_cognition"] = {"available": True, "dimensions": ["具体性", "根因性", "可执行性", "诚实性", "闭环性"]}
+    except Exception:
+        status["meta_cognition"] = {"available": False}
+    # v4.7: LangSmith
+    import os as _os
+    status["langsmith"] = {
+        "enabled": bool(_os.environ.get("LANGCHAIN_API_KEY")),
+        "project": _os.environ.get("LANGCHAIN_PROJECT", "mingzhu"),
+        "url": "https://app.langsmith.com",
+    }
     return status
 
 
