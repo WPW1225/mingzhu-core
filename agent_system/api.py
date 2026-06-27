@@ -487,15 +487,17 @@ def chat_stream(user_input: str, session_id: str = "default",
                 if end > 0:
                     yield {"type": "tool", "info": line[:end+1], "detail": line[end+1:][:200]}
 
-    # 阶段3：逐组执行人格（按调度策略）
+    # 阶段3：走完整5阶段图（initiation→planning→[memory/learn]→execution→review→retrospective）
     context = tool_ctx
-    persona_results = []
-    schedule = None
-
-    exec_state = {"user_input": user_input, "context": context, "persona_ids": persona_ids}
-    exec_result = graph._node_execute_personas(exec_state)
-    persona_results = exec_result.get("persona_results", [])
-    schedule = exec_result.get("schedule", {})
+    full_state = {
+        "user_input": user_input,
+        "context": context,
+        "thread_id": session_id,
+    }
+    # 调用完整图
+    full_result = graph.invoke(user_input, thread_id=session_id)
+    persona_results = full_result.get("persona_results", [])
+    schedule = full_result.get("schedule", {})
 
     if schedule:
         yield {"type": "schedule", "strategy": schedule.get("strategy", ""),
@@ -503,11 +505,11 @@ def chat_stream(user_input: str, session_id: str = "default",
                "reason": schedule.get("reason", "")}
 
     for r in persona_results:
-        yield {"type": "persona_done", "name": r["name"],
+        yield {"type": "persona_done", "name": r.get("name", ""),
                "content": r.get("content", ""), "confidence": r.get("confidence", "")}
 
-    # 阶段4：安全检查 + 冲突检测
-    state = {"persona_results": persona_results}
+    # 阶段4：安全检查 + 冲突检测（从完整结果取）
+    state = {"persona_results": persona_results, "final_output": full_result.get("final_output", "")}
     safety = graph._node_safety_check(state)
     conflicts = graph._node_conflict_check(state)
 
