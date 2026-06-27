@@ -67,10 +67,26 @@ def chat_with_details(user_input: str, session_id: str = "default") -> Dict[str,
         }
     """
     from .memory import get_memory, MemoryEntry
+    from .execution_strategy import select_strategy, ExecutionStrategyType, ReactStrategy
 
     graph = _get_graph()
     start = _time.time()
-    result = graph.invoke(user_input, thread_id=session_id)
+
+    # v4.8: 双轨制真正接入——根据策略选Pipeline或ReAct
+    strategy_type = select_strategy(user_input)
+    if strategy_type == ExecutionStrategyType.REACT:
+        # ReAct策略：LLM自主调工具循环
+        react = ReactStrategy(graph.router)
+        react_result = react.execute(user_input, "", graph.router)
+        result = {
+            "final_output": react_result.get("output", ""),
+            "persona_results": [],
+            "schedule": {"strategy": "react"},
+        }
+    else:
+        # Pipeline策略：走5阶段图
+        result = graph.invoke(user_input, thread_id=session_id)
+
     latency = (_time.time() - start) * 1000
 
     personas = result.get("persona_results", [])

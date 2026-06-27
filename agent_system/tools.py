@@ -16,6 +16,8 @@
 """
 import os
 import json
+import ast
+import operator as op
 import subprocess
 import logging
 from typing import Dict, List, Any, Optional, Callable
@@ -83,54 +85,69 @@ def tool_web_search(query: str, num: int = 5) -> ToolResult:
 
 
 def tool_calculator(expression: str) -> ToolResult:
-    """数学计算工具（安全执行算术表达式）"""
+    """数学计算工具（v4.8: ast遍历求值，不用eval）"""
     import time as _time
     start = _time.time()
+    # 安全检查：只允许数字、运算符、括号、函数名
+    import re
+    allowed = re.match(r'^[\d\s\+\-\*/\(\)\.\,a-zA-Z_]+$', expression)
+    if not allowed:
+        return ToolResult("calculator", False, error="表达式含非法字符")
+    # 禁止危险函数
+    dangerous = ["import", "exec", "eval", "open", "__", "os", "sys", "subprocess"]
+    for d in dangerous:
+        if d in expression:
+            return ToolResult("calculator", False, error=f"禁止使用: {d}")
+    # v4.8: ast遍历求值，完全不调eval
     try:
-        # 安全检查：只允许数字、运算符、括号、函数名
-        import re
-        allowed = re.match(r'^[\d\s\+\-\*/\(\)\.\,a-zA-Z_]+$', expression)
-        if not allowed:
-            return ToolResult("calculator", False,
-                            error="表达式含非法字符")
-
-        # 禁止危险函数
-        dangerous = ["import", "exec", "eval", "open", "__", "os", "sys", "subprocess"]
-        for d in dangerous:
-            if d in expression:
-                return ToolResult("calculator", False,
-                                error=f"禁止使用: {d}")
-
-        # v4.4: 安全求值——用ast.literal_eval替代eval（P0安全红线）
-        # ast.literal_eval 只解析字面量，不能执行任意代码
-        import ast
-        try:
-            # 先尝试把表达式转成可eval的ast节点
-            tree = ast.parse(expression, mode='eval')
-            # 只允许数字、运算符、调用(abs/round/min/max/sum/pow/len)
-            allowed_calls = {"abs", "round", "min", "max", "sum", "pow", "len"}
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Call):
-                    if not (isinstance(node.func, ast.Name) and node.func.id in allowed_calls):
-                        return ToolResult("calculator", False,
-                                        error="只允许 abs/round/min/max/sum/pow/len 函数")
-                elif isinstance(node, (ast.Import, ast.Attribute)):
-                    return ToolResult("calculator", False,
-                                    error="禁止import/属性访问")
-            # 安全编译执行
-            result = eval(compile(tree, '<calculator>', 'eval'), {"__builtins__": {
-                "abs": abs, "round": round, "min": min, "max": max,
-                "sum": sum, "pow": pow, "len": len,
-            }})
-        except SyntaxError:
-            return ToolResult("calculator", False,
-                            error="表达式语法错误")
-        latency = (_time.time() - start) * 1000
-        return ToolResult("calculator", True, output=str(result),
-                        latency_ms=latency)
+        tree = ast.parse(expression, mode='eval')
+        result = _safe_eval_node(tree.body)
+    except SyntaxError:
+        return ToolResult("calculator", False, error="表达式语法错误")
     except Exception as e:
-        return ToolResult("calculator", False, error=f"计算错误: {e}",
-                        latency_ms=(_time.time() - start) * 1000)
+        return ToolResult("calculator", False, error=f"计算错误: {e}")
+    latency = (_time.time() - start) * 1000
+    return ToolResult("calculator", True, output=str(result), latency_ms=latency)
+
+
+# v4.8: ast遍历求值，完全不调eval
+_SAFE_OPS = {
+    ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul,
+    ast.Div: op.truediv, ast.FloorDiv: op.floordiv, ast.Mod: op.mod,
+    ast.Pow: op.pow, ast.USub: op.neg, ast.UAdd: op.pos,
+}
+_SAFE_FUNCS = {
+    "abs": abs, "round": round, "min": min, "max": max,
+    "sum": sum, "pow": pow, "len": len,
+}
+
+def _safe_eval_node(node):
+    """递归求值ast节点，只允许数字/运算符/白名单函数"""
+    if isinstance(node, ast.Num):
+        return node.n
+    elif isinstance(node, ast.Constant):
+        return node.value
+    elif isinstance(node, ast.BinOp):
+        left = _safe_eval_node(node.left)
+        right = _safe_eval_node(node.right)
+        if type(node.op) not in _SAFE_OPS:
+            raise ValueError(f"不支持的运算符: {type(node.op).__name__}")
+        return _SAFE_OPS[type(node.op)](left, right)
+    elif isinstance(node, ast.UnaryOp):
+        operand = _safe_eval_node(node.operand)
+        if type(node.op) not in _SAFE_OPS:
+            raise ValueError("不支持的一元运算符")
+        return _SAFE_OPS[type(node.op)](operand)
+    elif isinstance(node, ast.Call):
+        if not isinstance(node.func, ast.Name):
+            raise ValueError("只允许简单函数调用")
+        func_name = node.func.id
+        if func_name not in _SAFE_FUNCS:
+            raise ValueError(f"不允许的函数: {func_name}")
+        args = [_safe_eval_node(a) for a in node.args]
+        return _SAFE_FUNCS[func_name](*args)
+    else:
+        raise ValueError(f"不允许的表达式类型: {type(node).__name__}")
 
 
 def tool_code_execute(code: str, language: str = "python") -> ToolResult:
