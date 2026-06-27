@@ -92,7 +92,7 @@ class WuCang:
 
 _officer: Optional[WuCang] = None
 
-def get_wu_tu() -> WuCang:
+def get_wu_cang() -> WuCang:
     global _officer
     if _officer is None:
         _officer = WuCang()

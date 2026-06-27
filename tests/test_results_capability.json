@@ -8,8 +8,8 @@
       "li_ming"
     ],
     "routed_personas": [
-      "jia_jue",
       "kan_guan",
+      "jia_jue",
       "li_ming"
     ],
     "overlap": [
@@ -28,10 +28,10 @@
       "xun_feng"
     ],
     "routed_personas": [
-      "zhen_zao",
       "qian_duan",
-      "kan_guan",
+      "zhen_zao",
       "li_ming",
+      "kan_guan",
       "gen_shou"
     ],
     "overlap": [
@@ -49,10 +49,10 @@
       "zhen_zao"
     ],
     "routed_personas": [
+      "kan_guan",
       "zhen_zao",
       "gen_shou",
-      "li_ming",
-      "kan_guan"
+      "li_ming"
     ],
     "overlap": [
       "zhen_zao"
@@ -70,8 +70,8 @@
     ],
     "routed_personas": [
       "kan_guan",
-      "li_ming",
-      "xun_feng"
+      "xun_feng",
+      "li_ming"
     ],
     "overlap": [
       "xun_feng"
@@ -89,10 +89,10 @@
       "gen_shou"
     ],
     "routed_personas": [
+      "kan_guan",
       "zhen_zao",
       "gen_shou",
-      "li_ming",
-      "kan_guan"
+      "li_ming"
     ],
     "overlap": [
       "zhen_zao",
@@ -111,8 +111,8 @@
     ],
     "routed_personas": [
       "kan_guan",
-      "li_ming",
-      "dui_ze"
+      "dui_ze",
+      "li_ming"
     ],
     "overlap": [
       "dui_ze"
@@ -129,10 +129,10 @@
       "li_ming"
     ],
     "routed_personas": [
+      "kan_guan",
       "zhen_zao",
       "gen_shou",
-      "li_ming",
-      "kan_guan"
+      "li_ming"
     ],
     "overlap": [
       "li_ming"
@@ -150,10 +150,10 @@
     ],
     "routed_personas": [
       "zhen_zao",
-      "kan_guan",
       "li_ming",
-      "gen_shou",
-      "kun_zai"
+      "kun_zai",
+      "kan_guan",
+      "gen_shou"
     ],
     "overlap": [
       "kun_zai"
@@ -171,10 +171,10 @@
     ],
     "routed_personas": [
       "qian_duan",
-      "kan_guan",
       "li_ming",
-      "gen_shou",
-      "kun_zai"
+      "kun_zai",
+      "kan_guan",
+      "gen_shou"
     ],
     "overlap": [
       "kan_guan"
@@ -189,21 +189,21 @@
     "input": "设计并实现一个用户认证系统，需要调研、架构、安全审查",
     "expected_personas": [
       "zhen_zao",
-      "gen_shou",
+      "kun_zai",
       "xun_feng",
-      "kun_zai"
+      "gen_shou"
     ],
     "routed_personas": [
       "zhen_zao",
-      "xun_feng",
-      "kan_guan",
       "li_ming",
-      "gen_shou"
+      "kan_guan",
+      "gen_shou",
+      "xun_feng"
     ],
     "overlap": [
       "zhen_zao",
-      "gen_shou",
-      "xun_feng"
+      "xun_feng",
+      "gen_shou"
     ],
     "has_observer": true,
     "status": "PASS"

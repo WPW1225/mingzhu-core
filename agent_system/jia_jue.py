@@ -156,7 +156,7 @@ class JiaJue:
 
 _officer: Optional[JiaJue] = None
 
-def get_jia_mu() -> JiaJue:
+def get_jia_jue() -> JiaJue:
     global _officer
     if _officer is None:
         _officer = JiaJue()

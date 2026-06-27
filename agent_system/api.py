@@ -166,13 +166,14 @@ def chat_with_details(user_input: str, session_id: str = "default") -> Dict[str,
             lesson=lesson, reusable=bool(lesson),
         ))
 
-        # v4.2: 学习官——从对话提炼知识到知识库
+        # v4.9: 甲觉·学习官——学习外部知识到知识库
         try:
-            from .learning_officer import get_learning_officer
-            clo = get_learning_officer()
-            learned = clo.learn_from_conversation(
-                user_input, output["output"], output["observer"], graph.router
-            )
+            from .jia_jue import get_jia_jue
+            jia_jue = get_jia_jue()
+            # 甲觉向外学习，不是归纳内部经验
+            learned = jia_jue.learn(user_input, graph.router) if any(
+                kw in user_input for kw in ["搜索", "查询", "了解", "学习", "最新", "什么是"]
+            ) else {"learned": 0}
             output["learned"] = learned
         except Exception:
             pass

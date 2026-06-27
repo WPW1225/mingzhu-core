@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-06-27 17:15:14",
-  "duration": 15.28601360321045,
+  "timestamp": "2026-06-27 17:23:23",
+  "duration": 5.969134330749512,
   "results": {
     "red_lines": {
       "passed": 16,
@@ -44,6 +44,10 @@
       "status": "PASS"
     },
     "gaia": {
+      "issues_found": 0,
+      "status": "PASS"
+    },
+    "deepeval": {
       "issues_found": 0,
       "status": "PASS"
     }

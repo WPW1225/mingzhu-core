@@ -157,6 +157,20 @@ def run_all_tests():
         print(f"❌ GAIA测试出错：{e}")
     print()
 
+    # 10. DeepEval顶级测试（v5.0，需真实LLM+deepeval）
+    print(">>> 运行 DeepEval 顶级测试（G-Eval/幻觉/相关性）...")
+    try:
+        from tests.test_deepeval import test_with_deepeval
+        issues = test_with_deepeval()
+        results["deepeval"] = {
+            "issues_found": len(issues),
+            "status": "PASS" if not issues else "FAIL",
+        }
+    except Exception as e:
+        results["deepeval"] = {"status": "ERROR", "error": str(e)}
+        print(f"❌ DeepEval测试出错：{e}")
+    print()
+
     # 汇总
     duration = time.time() - start_time
     print("=" * 70)

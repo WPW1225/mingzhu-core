@@ -321,10 +321,10 @@ class MingZhuGraph:
         except Exception:
             pass
 
-        # v4.2: 记忆官注入——对话前自动检索相关历史记忆
+        # v4.9: 戊藏·记忆官注入——对话前自动检索相关历史记忆
         try:
-            from .memory_officer import get_memory_officer
-            recalled = get_memory_officer().recall_relevant(user_input)
+            from .wu_cang import get_wu_cang
+            recalled = get_wu_cang().recall(user_input)
             if recalled:
                 context = (context + "\n\n" + recalled).strip()
         except Exception:
