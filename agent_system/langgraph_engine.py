@@ -448,6 +448,8 @@ class MingZhuGraph:
 否决是最后手段，不是默认反应。没有真正安全问题时，给出建设性建议即可。"""
 
         scene = Scene.SAFETY if pid == "gen_shou" else Scene.ANALYSIS
+        # v4.4: Prompt注入防御——user_input始终在user角色，不拼入system_prompt
+        # system_prompt是明烛控制的固定模板，user_input通过user消息传递
         full_prompt = user_input if not context else f"{context}\n\n当前问题：{user_input}"
         # v4.0: 增加 max_tokens + 要求最终结论（修复多步推理不完整问题）
         resp = self.router.generate(full_prompt, system_prompt=system_prompt,

@@ -128,16 +128,19 @@ class EvolutionEngine:
         return None
 
     def get_relevant_experiences(self, user_input: str, limit: int = 3) -> List[Dict]:
-        """获取与当前输入相关的历史经验（简单关键词匹配）"""
+        """获取与当前输入相关的历史经验（v4.4: 修复字符遍历bug，改为2-3字滑窗）"""
         exps = self._load(self.exp_file)
         if not exps:
             return []
-        # 简单关键词匹配
+        # v4.4: 2-3字滑窗分词，替代字符遍历
+        keywords = set()
+        for n in (2, 3):
+            for i in range(len(user_input) - n + 1):
+                keywords.add(user_input[i:i+n])
         scored = []
         for e in exps:
-            score = sum(1 for w in user_input if w in e.get("user_input", ""))
-            if e.get("lesson"):
-                score += sum(1 for w in user_input if w in e.get("lesson", ""))
+            exp_text = e.get("user_input", "") + " " + e.get("lesson", "")
+            score = sum(1 for kw in keywords if kw in exp_text)
             if score > 0:
                 scored.append((score, e))
         scored.sort(key=lambda x: -x[0])

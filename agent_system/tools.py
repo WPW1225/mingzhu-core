@@ -101,11 +101,30 @@ def tool_calculator(expression: str) -> ToolResult:
                 return ToolResult("calculator", False,
                                 error=f"禁止使用: {d}")
 
-        # 安全求值
-        result = eval(expression, {"__builtins__": {
-            "abs": abs, "round": round, "min": min, "max": max,
-            "sum": sum, "pow": pow, "len": len,
-        }})
+        # v4.4: 安全求值——用ast.literal_eval替代eval（P0安全红线）
+        # ast.literal_eval 只解析字面量，不能执行任意代码
+        import ast
+        try:
+            # 先尝试把表达式转成可eval的ast节点
+            tree = ast.parse(expression, mode='eval')
+            # 只允许数字、运算符、调用(abs/round/min/max/sum/pow/len)
+            allowed_calls = {"abs", "round", "min", "max", "sum", "pow", "len"}
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    if not (isinstance(node.func, ast.Name) and node.func.id in allowed_calls):
+                        return ToolResult("calculator", False,
+                                        error="只允许 abs/round/min/max/sum/pow/len 函数")
+                elif isinstance(node, (ast.Import, ast.Attribute)):
+                    return ToolResult("calculator", False,
+                                    error="禁止import/属性访问")
+            # 安全编译执行
+            result = eval(compile(tree, '<calculator>', 'eval'), {"__builtins__": {
+                "abs": abs, "round": round, "min": min, "max": max,
+                "sum": sum, "pow": pow, "len": len,
+            }})
+        except SyntaxError:
+            return ToolResult("calculator", False,
+                            error="表达式语法错误")
         latency = (_time.time() - start) * 1000
         return ToolResult("calculator", True, output=str(result),
                         latency_ms=latency)
