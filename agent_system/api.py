@@ -130,6 +130,16 @@ def chat_with_details(user_input: str, session_id: str = "default") -> Dict[str,
     except Exception:
         pass  # 记忆失败不影响主流程
 
+    # v5.1: 索引到ChromaDB持久化向量库
+    try:
+        from .vector_search import get_vector_search
+        get_vector_search().index_to_chroma(
+            session_id, user_input, output["output"],
+            _time.strftime("%Y-%m-%d %H:%M:%S"),
+        )
+    except Exception:
+        pass
+
     # v3.4: 自我进化——提取经验、检测纠正、学习偏好
     try:
         from .evolution import get_engine, Experience, Preference

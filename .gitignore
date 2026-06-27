@@ -19,3 +19,4 @@ agent_system/evolution/
 .idea/
 *.swp
 knowledge_base/
+chroma_db/

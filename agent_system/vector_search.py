@@ -15,6 +15,7 @@ import os
 import json
 import math
 import re
+import time
 import logging
 from typing import Dict, List, Tuple, Set
 from collections import Counter
@@ -162,15 +163,30 @@ class ZhipuEmbedding:
 
 
 class VectorMemorySearch:
-    """向量记忆检索器（v4.1: 支持智谱embedding + TF-IDF降级）"""
+    """向量记忆检索器（v5.1: ChromaDB持久化 + 智谱embedding + TF-IDF降级）"""
 
     def __init__(self, memory_dir: Path):
         self.memory_dir = memory_dir
         self.vectorizer = TfidfVectorizer()
-        self.embedder = ZhipuEmbedding()  # v4.1: embedding后端
+        self.embedder = ZhipuEmbedding()
         self._index_cache = None
         self._index_mtime = 0
-        self._embed_vectors = None  # embedding向量缓存
+        self._embed_vectors = None
+        # v5.1: ChromaDB持久化向量索引
+        self._chroma = None
+        self._init_chroma()
+
+    def _init_chroma(self):
+        """v5.1: 初始化ChromaDB（有则用，无则降级）"""
+        try:
+            import chromadb
+            chroma_path = self.memory_dir.parent / "chroma_db"
+            self._chroma = chromadb.PersistentClient(path=str(chroma_path))
+            self._chroma_collection = self._chroma.get_or_create_collection("mingzhu_memories")
+            logger.info("ChromaDB持久化向量索引已启用")
+        except Exception as e:
+            logger.debug(f"ChromaDB不可用，降级TF-IDF: {e}")
+            self._chroma = None
 
     def _load_all_memories(self) -> List[Dict]:
         """加载所有会话的所有记忆条目"""
@@ -216,18 +232,23 @@ class VectorMemorySearch:
     def search(self, query: str, limit: int = 5) -> List[Dict]:
         """语义检索：返回最相关的记忆条目
 
-        v4.1: 优先用智谱embedding（语义更强），降级用TF-IDF
+        v5.1: 优先ChromaDB持久化索引 → 智谱embedding → TF-IDF降级
         """
+        # v5.1: 优先ChromaDB（持久化，无需重建索引）
+        if self._chroma is not None:
+            results = self._search_with_chroma(query, limit)
+            if results:
+                return results
+
         self._build_index()
         if not self._index_cache:
             return []
 
-        # v4.1: 优先embedding检索
+        # 智谱embedding检索
         if self.embedder.is_available():
             results = self._search_with_embedding(query, limit)
             if results:
                 return results
-            # embedding失败则降级TF-IDF
 
         # TF-IDF检索
         query_vec = self.vectorizer.transform(query)
@@ -240,6 +261,53 @@ class VectorMemorySearch:
                 scored.append((sim, entry))
         scored.sort(key=lambda x: x[0], reverse=True)
         return self._format_results(scored[:limit])
+
+    def _search_with_chroma(self, query: str, limit: int) -> List[Dict]:
+        """v5.1: ChromaDB持久化向量检索"""
+        try:
+            # ChromaDB自带embedding（默认all-MiniLM-L6-v2）
+            results = self._chroma_collection.query(
+                query_texts=[query],
+                n_results=limit,
+            )
+            if not results.get("documents") or not results["documents"][0]:
+                return []
+            formatted = []
+            ids = results.get("ids", [[]])[0]
+            metadatas = results.get("metadatas", [[]])[0]
+            documents = results["documents"][0]
+            distances = results.get("distances", [[]])[0]
+            for i, doc in enumerate(documents):
+                meta = metadatas[i] if i < len(metadatas) else {}
+                formatted.append({
+                    "session_id": meta.get("session_id", ""),
+                    "timestamp": meta.get("timestamp", ""),
+                    "user_input": meta.get("user_input", "")[:100],
+                    "output": doc[:200],
+                    "similarity": round(1 - distances[i], 4) if i < len(distances) else 0,
+                })
+            return formatted
+        except Exception as e:
+            logger.debug(f"ChromaDB检索失败: {e}")
+            return []
+
+    def index_to_chroma(self, session_id: str, user_input: str, output: str, timestamp: str = ""):
+        """v5.1: 将新记忆索引到ChromaDB（持久化）"""
+        if self._chroma is None:
+            return
+        try:
+            doc_id = f"{session_id}_{timestamp or int(time.time())}"
+            self._chroma_collection.upsert(
+                ids=[doc_id],
+                documents=[output[:500]],
+                metadatas=[{
+                    "session_id": session_id,
+                    "timestamp": timestamp,
+                    "user_input": user_input[:200],
+                }],
+            )
+        except Exception as e:
+            logger.debug(f"ChromaDB索引失败: {e}")
 
     def _search_with_embedding(self, query: str, limit: int) -> List[Dict]:
         """用智谱embedding检索"""
