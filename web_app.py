@@ -539,8 +539,8 @@ async function showAgents() {
   renderAgents(data);
 }
 function renderAgents(data) {
-  const wt = data.wu_tu || {};
-  const jm = data.jia_mu || {};
+  const wt = data.wu_cang || {};
+  const jm = data.jia_jue || {};
   const evo = data.evolution || {};
   const cost = data.cost || {};
   const personas = data.personas || [];
@@ -563,10 +563,10 @@ function renderAgents(data) {
     <div class="metric-card"><h4>🎯 8个执行人格（MoE）</h4>
       <div style="margin-top:8px;">${personasHtml || '加载中'}</div>
     </div>
-    <div class="metric-card"><h4>🏔️ 戊土·记忆官</h4>
+    <div class="metric-card"><h4>🏔️ 戊藏·记忆官</h4>
       <div>会话: ${wt.total_sessions||0} | 记忆: ${wt.total_memories||0} | 遗忘阈值: ${wt.forget_threshold||50}</div>
     </div>
-    <div class="metric-card"><h4>🌳 甲木·学习官</h4>
+    <div class="metric-card"><h4>🌳 甲觉·学习官</h4>
       <div>知识: ${jm.total_knowledge||0} 条</div>
       <div style="font-size:12px;color:#71717a;margin-top:4px;">主题: ${(jm.topics||[]).join(', ')||'无'}</div>
     </div>

@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-甲木 · 学习官（v4.3）
+甲觉 · 学习官（v4.3）
 
-命名：甲木为用神之首（生丁火），阳木主生发学习。
+命名：甲觉为用神之首（生丁火），阳木主生发学习。
 职责：被明烛(CEO)调用时才工作，学习外部知识存入知识库。
   1. 搜索：用web_search获取外部知识
   2. 提炼：从搜索结果提取结构化知识
   3. 归档：存入knowledge_base/，供后续检索
 
 与进化系统(evolution.py)的区别：
-- 甲木：向外学习（外部知识）
+- 甲觉：向外学习（外部知识）
 - evolution：向内归纳（内部经验）
 
-设计原则：明烛判断"需要外部知识吗"才调用甲木，不需要就休息。
+设计原则：明烛判断"需要外部知识吗"才调用甲觉，不需要就休息。
 """
 import json
 import time
@@ -44,8 +44,8 @@ class Knowledge:
         }
 
 
-class JiaMu:
-    """甲木·学习官"""
+class JiaJue:
+    """甲觉·学习官"""
 
     def __init__(self):
         self.kb_file = KB_DIR / "external.json"
@@ -83,7 +83,7 @@ class JiaMu:
             result = reg.call("web_search", query=topic, num=5)
             return result.output if result.success else ""
         except Exception as e:
-            logger.debug(f"甲木搜索失败: {e}")
+            logger.debug(f"甲觉搜索失败: {e}")
             return ""
 
     def _extract_knowledge(self, topic: str, search_text: str, router) -> Optional[Knowledge]:
@@ -113,7 +113,7 @@ class JiaMu:
                 created_at=time.strftime("%Y-%m-%d %H:%M:%S"),
             )
         except Exception as e:
-            logger.debug(f"甲木提炼失败: {e}")
+            logger.debug(f"甲觉提炼失败: {e}")
             return None
 
     def _archive(self, knowledge: Knowledge):
@@ -129,7 +129,7 @@ class JiaMu:
                     or topic.lower() in d.get("content", "").lower()]
         if not relevant:
             return ""
-        parts = [f"【甲木·知识库·{topic}】"]
+        parts = [f"【甲觉·知识库·{topic}】"]
         for d in relevant[-limit:]:
             parts.append(d.get("content", "")[:300])
         return "\n".join(parts)
@@ -154,10 +154,10 @@ class JiaMu:
         }
 
 
-_officer: Optional[JiaMu] = None
+_officer: Optional[JiaJue] = None
 
-def get_jia_mu() -> JiaMu:
+def get_jia_mu() -> JiaJue:
     global _officer
     if _officer is None:
-        _officer = JiaMu()
+        _officer = JiaJue()
     return _officer

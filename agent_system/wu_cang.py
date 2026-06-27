@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-戊土 · 记忆官（v4.3）
+戊藏 · 记忆官（v4.3）
 
-命名：时柱戊土（伤官），阳土主储藏固化。
+命名：时柱戊藏（伤官），阳土主储藏固化。
 职责：被明烛(CEO)调用时才工作，不常驻。
   1. 检索：对话前检索相关历史记忆，注入context
   2. 遗忘：超过阈值时清理低价值记忆
   3. 去重：相似度高的记忆合并
 
-设计原则：明烛判断"需要回忆吗"才调用戊土，不需要就休息（不耗token）。
+设计原则：明烛判断"需要回忆吗"才调用戊藏，不需要就休息（不耗token）。
 """
 import json
 import time
@@ -19,8 +19,8 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-class WuTu:
-    """戊土·记忆官"""
+class WuCang:
+    """戊藏·记忆官"""
 
     def __init__(self):
         from .memory import get_memory
@@ -37,7 +37,7 @@ class WuTu:
         relevant = [r for r in results if r.get("similarity", 0) > 0.4]
         if not relevant:
             return ""
-        parts = ["【戊土·相关记忆】"]
+        parts = ["【戊藏·相关记忆】"]
         for r in relevant[:3]:
             parts.append(
                 f"- [{r.get('session_id','')}] {r.get('user_input','')[:60]}\n"
@@ -90,10 +90,10 @@ class WuTu:
         }
 
 
-_officer: Optional[WuTu] = None
+_officer: Optional[WuCang] = None
 
-def get_wu_tu() -> WuTu:
+def get_wu_tu() -> WuCang:
     global _officer
     if _officer is None:
-        _officer = WuTu()
+        _officer = WuCang()
     return _officer

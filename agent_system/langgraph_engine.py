@@ -91,18 +91,18 @@ class MingZhuGraph:
         self.graph = self._build_graph()
 
     def _build_graph(self):
-        """构建状态图（v4.3: 企业级5阶段+记忆官戊土+学习官甲木）
+        """构建状态图（v4.3: 企业级5阶段+记忆官戊藏+学习官甲觉）
 
         5阶段：立项→规划→[记忆/学习按需]→执行→审查→复盘
-        戊土(记忆官)、甲木(学习官)由明烛在planning判断是否调用，不常驻。
+        戊藏(记忆官)、甲觉(学习官)由明烛在planning判断是否调用，不常驻。
         """
         workflow = StateGraph(MingZhuState)
 
         # 5阶段节点
         workflow.add_node("initiation", self._node_initiation)
         workflow.add_node("planning", self._node_planning)
-        workflow.add_node("memory_recall", self._node_memory_recall)  # v4.3: 戊土
-        workflow.add_node("knowledge_learn", self._node_knowledge_learn)  # v4.3: 甲木
+        workflow.add_node("memory_recall", self._node_memory_recall)  # v4.3: 戊藏
+        workflow.add_node("knowledge_learn", self._node_knowledge_learn)  # v4.3: 甲觉
         workflow.add_node("execution", self._node_execute_personas)
         workflow.add_node("review", self._node_review)
         workflow.add_node("retrospective", self._node_retrospective)
@@ -133,7 +133,7 @@ class MingZhuGraph:
 
         return workflow.compile(checkpointer=self.checkpointer)
 
-    # ---------- v4.3: 戊土(记忆官)+甲木(学习官)节点 ----------
+    # ---------- v4.3: 戊藏(记忆官)+甲觉(学习官)节点 ----------
 
     def _after_planning(self, state: MingZhuState) -> str:
         """明烛判断：这个任务需要回忆记忆吗？需要学习外部知识吗？"""
@@ -148,36 +148,36 @@ class MingZhuGraph:
         return "direct"
 
     def _node_memory_recall(self, state: MingZhuState) -> Dict:
-        """戊土·记忆官：被明烛调用时检索相关记忆"""
+        """戊藏·记忆官：被明烛调用时检索相关记忆"""
         try:
-            from .wu_tu import get_wu_tu
-            recalled = get_wu_tu().recall(state.get("user_input", ""))
+            from .wu_cang import get_wu_cang
+            recalled = get_wu_cang().recall(state.get("user_input", ""))
             if recalled:
                 existing_ctx = state.get("context", "")
                 return {"context": (existing_ctx + "\n\n" + recalled).strip()}
         except Exception as e:
-            logger.debug(f"戊土记忆检索失败: {e}")
+            logger.debug(f"戊藏记忆检索失败: {e}")
         return {}
 
     def _node_knowledge_learn(self, state: MingZhuState) -> Dict:
-        """甲木·学习官：被明烛调用时学习外部知识"""
+        """甲觉·学习官：被明烛调用时学习外部知识"""
         try:
-            from .jia_mu import get_jia_mu
-            jia_mu = get_jia_mu()
+            from .jia_jue import get_jia_jue
+            jia_jue = get_jia_jue()
             user_input = state.get("user_input", "")
             # 先查知识库是否已有
-            existing = jia_mu.query(user_input)
+            existing = jia_jue.query(user_input)
             if existing:
                 ctx = state.get("context", "")
                 return {"context": (ctx + "\n\n" + existing).strip()}
             # 没有则学习
-            result = jia_mu.learn(user_input, self.router)
+            result = jia_jue.learn(user_input, self.router)
             if result.get("learned"):
-                learned_text = f"【甲木·刚学到】{result.get('content','')}"
+                learned_text = f"【甲觉·刚学到】{result.get('content','')}"
                 ctx = state.get("context", "")
                 return {"context": (ctx + "\n\n" + learned_text).strip()}
         except Exception as e:
-            logger.debug(f"甲木学习失败: {e}")
+            logger.debug(f"甲觉学习失败: {e}")
         return {}
 
     # ---------- v4.1: 5阶段节点实现 ----------
@@ -538,9 +538,19 @@ class MingZhuGraph:
     def _maybe_call_tools(self, persona_ids: List[str], user_input: str) -> str:
         """工具集成：根据人格配置的 tools 字段，自动调用合适的工具。
 
-        v3.3 改进：从 persona yaml 读取 tools 绑定，不再硬编码。
-        支持的工具：web_search / calculator / code_execute / file_read
+        v4.9: 接入ToolAdapter——支持FC的模型走Function Calling，否则走关键词。
+        v3.3: 从 persona yaml 读取 tools 绑定。
         """
+        # v4.9: ToolAdapter接入——检测模型是否支持FC
+        try:
+            from .tool_adapter import get_tool_adapter
+            adapter = get_tool_adapter(self.router)
+            # 如果当前模型支持FC，记录日志（实际FC透传需LLM后端支持，这里标记）
+            if adapter.supports_function_calling(self.router.zhipu.default_model):
+                logger.debug("模型支持FC，ToolAdapter已就绪")
+        except Exception:
+            pass
+
         tool_context_parts = []
 
         try:

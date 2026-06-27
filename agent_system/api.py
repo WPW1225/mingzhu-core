@@ -279,18 +279,18 @@ def estimate_cost(user_input: str) -> Dict:
 def get_agents_status() -> Dict:
     """v4.7: 获取所有agent状态（全状态面板）"""
     status = {}
-    # 戊土·记忆官
+    # 戊藏·记忆官
     try:
-        from .wu_tu import get_wu_tu
-        status["wu_tu"] = get_wu_tu().get_status()
+        from .wu_cang import get_wu_cang
+        status["wu_cang"] = get_wu_cang().get_status()
     except Exception:
-        status["wu_tu"] = {"error": "unavailable"}
-    # 甲木·学习官
+        status["wu_cang"] = {"error": "unavailable"}
+    # 甲觉·学习官
     try:
-        from .jia_mu import get_jia_mu
-        status["jia_mu"] = get_jia_mu().get_status()
+        from .jia_jue import get_jia_jue
+        status["jia_jue"] = get_jia_jue().get_status()
     except Exception:
-        status["jia_mu"] = {"error": "unavailable"}
+        status["jia_jue"] = {"error": "unavailable"}
     # 进化系统
     try:
         status["evolution"] = evolution_metrics()

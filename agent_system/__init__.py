@@ -72,6 +72,15 @@ PERSONAS = {
         "name": "兑泽", "file": "DUI_ZE.md", "icon": "💡",
         "triggers": ["创意", "头脑风暴", "创新", "灵感", "发散", "颠覆", "联想", "可能"],
     },
+    # v4.9: 新增2个agent纳入人格体系（不再是独立模块）
+    "wu_cang": {
+        "name": "戊藏", "file": "config/personas/wu_cang.yaml", "icon": "🏔️",
+        "triggers": ["之前", "上次", "刚才", "继续", "历史", "记得"],
+    },
+    "jia_jue": {
+        "name": "甲觉", "file": "config/personas/jia_jue.yaml", "icon": "🌱",
+        "triggers": ["搜索", "查询", "了解", "学习", "最新", "什么是"],
+    },
 }
 
 # 八卦五行映射（用于用神优先级路由）
@@ -84,6 +93,8 @@ TRIGRAM_ELEMENT = {
     "li_ming": "fire",      # 离·火·用神
     "gen_shou": "earth",    # 艮·土·喜神
     "kun_zai": "earth",     # 坤·土·喜神
+    "wu_cang": "earth",     # 戊·土·喜神（记忆官）
+    "jia_jue": "wood",      # 甲·木·用神（学习官）
 }
 
 # 用神优先级（基于八字：丁火身弱，用木火，喜土，忌水金）
