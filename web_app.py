@@ -32,7 +32,7 @@ from agent_system.api import (
     chat_with_details, get_history,
     list_sessions, clear_session, cost_summary, evolution_summary,
     chat_stream, search_memory, evolution_metrics,
-    estimate_cost, get_agents_status,
+    estimate_conversation_cost, get_agents_status,
 )
 
 app = FastAPI(title="明烛 Web", version="3.6")
@@ -213,7 +213,7 @@ async def v1_search(query: str):
 @app.post("/api/v1/estimate")
 async def v1_estimate(req: ChatRequest):
     """POST /api/v1/estimate - 执行前成本预估"""
-    return JSONResponse(estimate_cost(req.message))
+    return JSONResponse(estimate_conversation_cost(req.message))
 
 
 @app.get("/api/v1/agents/status")

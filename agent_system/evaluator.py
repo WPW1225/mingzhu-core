@@ -434,9 +434,16 @@ class Evaluator:
             if not resp.ok:
                 return None
 
-            # 解析 JSON
+            # v5.2: 用json_mode强制JSON解析（替代手动提取）
+            try:
+                from .json_mode import extract_json
+                data = extract_json(resp.content)
+                if data:
+                    return float(data.get("overall", 0))
+            except Exception:
+                pass
+            # 降级：手动提取
             import json as _json
-            # 提取 JSON 部分
             text = resp.content
             idx = text.find('{')
             if idx < 0:

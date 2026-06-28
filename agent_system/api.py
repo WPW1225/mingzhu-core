@@ -68,6 +68,10 @@ def chat_with_details(user_input: str, session_id: str = "default") -> Dict[str,
     """
     from .memory import get_memory, MemoryEntry
     from .execution_strategy import select_strategy, ExecutionStrategyType, ReactStrategy
+    from .error_handling import logger as structured_logger, safe_run
+
+    structured_logger.set_request_id(session_id)
+    structured_logger.info("chat_start", session_id=session_id, input_length=len(user_input))
 
     graph = _get_graph()
     start = _time.time()
@@ -248,7 +252,7 @@ def get_history(session_id: str) -> List[Dict]:
     return get_memory().load_session(session_id)
 
 
-def estimate_cost(user_input: str) -> Dict:
+def estimate_conversation_cost(user_input: str) -> Dict:
     """v4.5: 成本预估——执行前预估token和费用
 
     根据输入长度和预估人格数，估算本次对话成本。
