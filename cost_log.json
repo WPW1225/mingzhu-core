@@ -5290,5 +5290,17 @@
     "cost_yuan": 0.02315,
     "latency_ms": 3452.8,
     "ok": true
+  },
+  {
+    "timestamp": "2026-06-28 20:01:04",
+    "backend": "zhipu",
+    "model": "glm-4-plus",
+    "scene": "judge",
+    "input_tokens": 330,
+    "output_tokens": 129,
+    "total_tokens": 459,
+    "cost_yuan": 0.02295,
+    "latency_ms": 1888.8,
+    "ok": true
   }
 ]

@@ -411,13 +411,21 @@ class MingZhuGraph:
                 "error": f"加载人格失败: {e}",
             }
 
-        # 构造系统提示词（含之前人格的输出）
+        # 构造系统提示词（v5.5: 优先用persona配置的system_prompt_template）
         prior_context = ""
         if prior_outputs:
             prior_context = "\n\n【其他人格已给出的分析（你可引用/补充/质疑）】\n" + \
-                            "\n---\n".join(prior_outputs[-3:])  # 最多3条防token爆炸
+                            "\n---\n".join(prior_outputs[-3:])
 
-        system_prompt = f"""你是「{persona_name}」，明烛数字分身的子人格。
+        # v5.5: 优先用结构化system_prompt_template，降级用旧格式
+        from .config_loader import config as soul_config
+        persona_cfg = soul_config.personas.get(pid, {})
+        template = persona_cfg.get("system_prompt_template", "")
+
+        if template:
+            system_prompt = template + prior_context
+        else:
+            system_prompt = f"""你是「{persona_name}」，明烛数字分身的子人格。
 
 {persona_content}
 {prior_context}
