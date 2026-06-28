@@ -349,7 +349,7 @@ class MingZhuGraph:
                 results.extend(group_results)
                 for r in group_results:
                     if r.get("content"):
-                        prior_outputs.append(f"{r['name']}: {r['content'][:300]}")
+                        prior_outputs.append(f"{r['name']}: {r['content'][:800]}")
 
             # 迭代策略
             if schedule.needs_iteration and schedule.max_iterations > 1:
@@ -414,7 +414,7 @@ class MingZhuGraph:
         # 构造系统提示词（v5.5: 优先用persona配置的system_prompt_template）
         prior_context = ""
         if prior_outputs:
-            prior_context = "\n\n【其他人格已给出的分析（你可引用/补充/质疑）】\n" + \
+            prior_context = "\n\n【共享黑板·其他人格的完整分析】\n你可以看到其他人格的完整分析。请基于他们的观点：\n- 补充他们遗漏的\n- 质疑你不认同的\n- 不要复述他们已说过的\n\n" + \
                             "\n---\n".join(prior_outputs[-3:])
 
         # v5.5: 优先用结构化system_prompt_template，降级用旧格式
