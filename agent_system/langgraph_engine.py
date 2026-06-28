@@ -538,19 +538,9 @@ class MingZhuGraph:
     def _maybe_call_tools(self, persona_ids: List[str], user_input: str) -> str:
         """工具集成：根据人格配置的 tools 字段，自动调用合适的工具。
 
-        v4.9: 接入ToolAdapter——支持FC的模型走Function Calling，否则走关键词。
+        v5.3: ToolAdapter真正接入——支持FC的模型透传tools参数，否则走关键词。
         v3.3: 从 persona yaml 读取 tools 绑定。
         """
-        # v4.9: ToolAdapter接入——检测模型是否支持FC
-        try:
-            from .tool_adapter import get_tool_adapter
-            adapter = get_tool_adapter(self.router)
-            # 如果当前模型支持FC，记录日志（实际FC透传需LLM后端支持，这里标记）
-            if adapter.supports_function_calling(self.router.zhipu.default_model):
-                logger.debug("模型支持FC，ToolAdapter已就绪")
-        except Exception:
-            pass
-
         tool_context_parts = []
 
         try:

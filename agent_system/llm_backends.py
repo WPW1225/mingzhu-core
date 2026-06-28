@@ -70,7 +70,7 @@ class ZhipuBackend:
 
     def generate(self, prompt: str, system_prompt: str = "",
                  temperature: float = 0.3, max_tokens: int = 1500,
-                 model: str = None) -> LLMResponse:
+                 model: str = None, tools: list = None) -> LLMResponse:
         import time as _time
         import urllib.request
 
@@ -84,10 +84,15 @@ class ZhipuBackend:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
 
-            payload = json.dumps({
+            # v5.3: 支持Function Calling透传
+            request_body = {
                 "model": model, "messages": messages,
                 "temperature": temperature, "max_tokens": max_tokens,
-            }).encode("utf-8")
+            }
+            if tools:
+                request_body["tools"] = tools
+
+            payload = json.dumps(request_body).encode("utf-8")
 
             try:
                 req = urllib.request.Request(
@@ -168,7 +173,7 @@ class DeepSeekBackend:
 
     def generate(self, prompt: str, system_prompt: str = "",
                  temperature: float = 0.3, max_tokens: int = 1500,
-                 model: str = None) -> LLMResponse:
+                 model: str = None, tools: list = None) -> LLMResponse:
         import time as _time
         import urllib.request
 
@@ -184,10 +189,15 @@ class DeepSeekBackend:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        payload = json.dumps({
+        # v5.3: 支持Function Calling透传
+        request_body = {
             "model": model, "messages": messages,
             "temperature": temperature, "max_tokens": max_tokens,
-        }).encode("utf-8")
+        }
+        if tools:
+            request_body["tools"] = tools
+
+        payload = json.dumps(request_body).encode("utf-8")
 
         try:
             req = urllib.request.Request(
@@ -254,14 +264,15 @@ class LLMRouter:
 
     def generate(self, prompt: str, scene: Scene = Scene.DEFAULT,
                  system_prompt: str = "", temperature: float = 0.3,
-                 max_tokens: int = 1500) -> LLMResponse:
-        """按场景路由生成"""
+                 max_tokens: int = 1500, tools: list = None) -> LLMResponse:
+        """按场景路由生成（v5.3: 支持tools透传）"""
         backend_name = self.get_backend(scene)
         backend = self.deepseek if backend_name == "deepseek" else self.zhipu
 
         resp = backend.generate(
             prompt=prompt, system_prompt=system_prompt,
             temperature=temperature, max_tokens=max_tokens,
+            tools=tools,
         )
         resp.scene = scene.value
 
