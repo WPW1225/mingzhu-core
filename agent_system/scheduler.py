@@ -85,20 +85,26 @@ def plan_schedule(persona_ids: List[str], user_input: str, router) -> SchedulePl
     }
     personas_str = ", ".join(persona_names.get(p, p) for p in persona_ids)
 
-    prompt = f"""你是明烛主人格，负责调度子人格。根据任务特征决定最佳调度策略。
+    prompt = f"""你是明烛CEO，负责调度子人格。根据任务特征决定最佳协作模式。
 
 【需调用的人格】{personas_str}
 【用户任务】{user_input}
 
-【调度策略】（选一个）
-- parallel: 各人格独立分析同一问题，互不依赖（如多角度评估）
-- sequential: 有依赖关系，需接力（如调研→实现→审查）
-- mixed: 部分独立部分依赖（如先并行调研+创意，再顺序决策+审查）
-- iterative: 需要反复修正（如实现→审查→修正，循环直到通过）
-- discuss: 各人格先并行独立分析，然后互相讨论质疑，最后汇总（适合需要多视角深度探讨的复杂问题）
+【协作模式】（选一个，参考世界级企业的工作方式）
+- parallel: 各人格独立分析同一问题，互不依赖。像企业里多个部门各自出具报告。适合：多角度评估、对比分析
+- sequential: 有依赖关系，需接力。像企业流水线。适合：调研→实现→审查、需求→设计→开发
+- mixed: 部分独立部分依赖。像企业项目里先并行收集信息再顺序决策。适合：先调研+创意并行，再决策+审查顺序
+- iterative: 需要反复修正。像企业的PDCA循环。适合：实现→审查→修正、写→审→改
+- discuss: 各人格先并行独立分析，然后互相讨论质疑，最后汇总。像企业的高管会议。适合：复杂决策、争议性问题、需要多视角深度探讨
 
-【输出格式】严格JSON，不要其他内容：
-{{"strategy":"sequential","groups":[["xun_feng"],["zhen_zao"],["gen_shou"]],"needs_iteration":false,"reason":"调研→实现→审查有依赖关系"}}"""
+【示例】
+任务"对比Redis和Memcached" → parallel（多角度独立评估）
+任务"调研JWT然后实现认证" → sequential（有依赖）
+任务"从技术安全商业角度讨论微服务" → discuss（需要多视角讨论）
+任务"写代码然后审查修复" → iterative（需要循环修正）
+
+【输出格式】严格JSON：
+{{"strategy":"discuss","groups":[["qian_duan","gen_shou","zhen_zao"]],"needs_iteration":false,"reason":"需要多视角讨论"}}"""
 
     try:
         resp = router.generate(prompt, scene=Scene.ROUTING, max_tokens=200)

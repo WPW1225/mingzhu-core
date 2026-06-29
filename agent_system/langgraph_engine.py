@@ -136,13 +136,19 @@ class MingZhuGraph:
     # ---------- v4.3: 戊藏(记忆官)+甲觉(学习官)节点 ----------
 
     def _after_planning(self, state: MingZhuState) -> str:
-        """明烛判断：这个任务需要回忆记忆吗？需要学习外部知识吗？"""
+        """v5.7: CEO根据任务特征选择协作模式
+
+        不再只做关键词匹配，而是用LLM判断任务需要什么：
+        - memory: 需要回忆历史（含"之前/上次/继续"）
+        - learn: 需要外部知识（含"搜索/什么是/最新"）
+        - direct: 直接执行
+
+        执行阶段的协作模式由planning节点的schedule决定（parallel/sequential/discuss等）
+        """
         user_input = state.get("user_input", "")
-        # 简单规则判断（避免每次都调LLM浪费token）
-        # 含"之前/上次/刚才"→需要记忆
+        # 记忆和学习仍用关键词（省token）
         if any(w in user_input for w in ["之前", "上次", "刚才", "之前说的", "继续"]):
             return "memory"
-        # 含"搜索/查询/了解/学习/最新"→需要外部知识
         if any(w in user_input for w in ["搜索", "查询", "了解", "学习", "最新", "什么是"]):
             return "learn"
         return "direct"
