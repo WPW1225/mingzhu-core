@@ -216,21 +216,96 @@ class MingZhuGraph:
         }
 
     def _node_review(self, state: MingZhuState) -> Dict:
-        """阶段4：审查（观察部+CSO独立审查，决定通过或退回）"""
-        # 复用现有安全检查+冲突检测+观察
+        """阶段4：审查（v6.0: Verdict裁决系统+Critic对抗）
+
+        升级：从"通过/否决"二选一 → accept/revise/reject三态裁决
+        """
+        from .cognitive_state import determine_verdict, Verdict
+
+        # 安全检查
         safety = self._node_safety_check(state)
         conflicts = self._node_conflict_check(state)
         # 观察部审查
         observer = self._node_observe(state)
-        # 判断是否通过：无否决 + 冲突可接受
-        passed = not safety.get("vetoed", False)
+
+        # v6.0: Critic对抗——找输出中的漏洞
+        critic_attacks = self._critic_attack(state)
+
+        # v6.0: 用Verdict系统裁决
+        has_violation = safety.get("vetoed", False)
+        has_critic_fatal = any(a.get("severity") == "fatal" for a in critic_attacks)
+        # 简化评分：有冲突扣分，有critic攻击扣分
+        score = 80.0
+        if has_violation:
+            score -= 40
+        if conflicts.get("conflicts"):
+            score -= len(conflicts["conflicts"]) * 5
+        if critic_attacks:
+            score -= len(critic_attacks) * 10
+        score = max(0, score)
+
+        verdict = determine_verdict(score, has_violation, has_critic_fatal)
+        passed = verdict == Verdict.ACCEPT
+
         return {
             **safety,
             "conflicts": conflicts.get("conflicts", []),
             "observer_report": observer.get("observer_report", ""),
             "review_passed": passed,
+            "review_verdict": verdict.value,
+            "review_score": score,
+            "critic_attacks": critic_attacks,
             "task_spec": {"phase": "review"},
         }
+
+    def _critic_attack(self, state: MingZhuState) -> List[Dict]:
+        """v6.0: Critic对抗——主动找输出中的漏洞
+
+        不是观察（坎观），是攻击——找逻辑矛盾、缺失证据、幻觉
+        """
+        results = state.get("persona_results", [])
+        if not results:
+            return []
+
+        attacks = []
+        try:
+            from .llm_backends import Scene
+            # 把所有人格输出给Critic攻击
+            outputs_text = "\n---\n".join(
+                f"{r.get('name','')}: {r.get('content','')[:400]}"
+                for r in results if r.get("content")
+            )
+
+            prompt = f"""你是Critic（对抗审查者），你的任务是攻击以下AI输出，找出漏洞。
+
+【待攻击的输出】
+{outputs_text[:1500]}
+
+找出以下类型的问题（没有就说"无"）：
+1. 逻辑矛盾：前后说法不一致
+2. 缺失证据：有结论但没给依据
+3. 幻觉：编造的事实或数据
+4. 遗漏：该说但没说的关键点
+
+返回JSON数组，每个问题一条：
+[{{"type":"逻辑矛盾","description":"...","severity":"fatal/major/minor"}}]
+如果没有问题，返回 []"""
+
+            resp = self.router.generate(prompt, scene=Scene.JUDGE, max_tokens=300)
+            if resp.ok:
+                from .json_mode import extract_json
+                import json as _json
+                text = resp.content
+                # 尝试解析JSON数组
+                text = text.replace('```json', '').replace('```', '')
+                idx = text.find('[')
+                end = text.rfind(']')
+                if idx >= 0 and end > idx:
+                    attacks = _json.loads(text[idx:end+1])
+        except Exception as e:
+            logger.debug(f"Critic攻击失败: {e}")
+
+        return attacks
 
     def _after_review(self, state: MingZhuState) -> str:
         """审查后条件路由：通过→复盘，否决→退回执行"""

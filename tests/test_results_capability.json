@@ -8,9 +8,9 @@
       "li_ming"
     ],
     "routed_personas": [
-      "li_ming",
       "kan_guan",
-      "jia_jue"
+      "jia_jue",
+      "li_ming"
     ],
     "overlap": [
       "li_ming"
@@ -28,11 +28,11 @@
       "xun_feng"
     ],
     "routed_personas": [
-      "li_ming",
-      "qian_duan",
+      "gen_shou",
       "kan_guan",
-      "zhen_zao",
-      "gen_shou"
+      "qian_duan",
+      "li_ming",
+      "zhen_zao"
     ],
     "overlap": [
       "qian_duan"
@@ -49,10 +49,10 @@
       "zhen_zao"
     ],
     "routed_personas": [
-      "zhen_zao",
+      "gen_shou",
       "li_ming",
-      "kan_guan",
-      "gen_shou"
+      "zhen_zao",
+      "kan_guan"
     ],
     "overlap": [
       "zhen_zao"
@@ -69,9 +69,9 @@
       "xun_feng"
     ],
     "routed_personas": [
+      "xun_feng",
       "li_ming",
-      "kan_guan",
-      "xun_feng"
+      "kan_guan"
     ],
     "overlap": [
       "xun_feng"
@@ -85,18 +85,18 @@
     "description": "安全审查：代码审计",
     "input": "审查这段代码的安全性：eval(user_input)",
     "expected_personas": [
-      "zhen_zao",
-      "gen_shou"
+      "gen_shou",
+      "zhen_zao"
     ],
     "routed_personas": [
-      "zhen_zao",
+      "gen_shou",
       "li_ming",
-      "kan_guan",
-      "gen_shou"
+      "zhen_zao",
+      "kan_guan"
     ],
     "overlap": [
-      "zhen_zao",
-      "gen_shou"
+      "gen_shou",
+      "zhen_zao"
     ],
     "has_observer": true,
     "status": "PASS"
@@ -110,9 +110,9 @@
       "dui_ze"
     ],
     "routed_personas": [
-      "li_ming",
+      "dui_ze",
       "kan_guan",
-      "dui_ze"
+      "li_ming"
     ],
     "overlap": [
       "dui_ze"
@@ -129,10 +129,10 @@
       "li_ming"
     ],
     "routed_personas": [
-      "zhen_zao",
+      "gen_shou",
       "li_ming",
-      "kan_guan",
-      "gen_shou"
+      "zhen_zao",
+      "kan_guan"
     ],
     "overlap": [
       "li_ming"
@@ -149,11 +149,11 @@
       "kun_zai"
     ],
     "routed_personas": [
-      "li_ming",
       "kun_zai",
+      "gen_shou",
       "kan_guan",
-      "zhen_zao",
-      "gen_shou"
+      "li_ming",
+      "zhen_zao"
     ],
     "overlap": [
       "kun_zai"
@@ -170,11 +170,11 @@
       "kan_guan"
     ],
     "routed_personas": [
-      "li_ming",
-      "qian_duan",
       "kun_zai",
+      "gen_shou",
       "kan_guan",
-      "gen_shou"
+      "qian_duan",
+      "li_ming"
     ],
     "overlap": [
       "kan_guan"
@@ -188,22 +188,22 @@
     "description": "复杂协作：多人格联合",
     "input": "设计并实现一个用户认证系统，需要调研、架构、安全审查",
     "expected_personas": [
-      "zhen_zao",
       "gen_shou",
       "xun_feng",
+      "zhen_zao",
       "kun_zai"
     ],
     "routed_personas": [
-      "li_ming",
-      "kan_guan",
-      "zhen_zao",
       "gen_shou",
-      "xun_feng"
+      "kan_guan",
+      "xun_feng",
+      "li_ming",
+      "zhen_zao"
     ],
     "overlap": [
-      "zhen_zao",
       "gen_shou",
-      "xun_feng"
+      "xun_feng",
+      "zhen_zao"
     ],
     "has_observer": true,
     "status": "PASS"
