@@ -247,15 +247,25 @@ class MingZhuGraph:
         # v6.0: 用Verdict系统裁决
         has_violation = safety.get("vetoed", False)
         has_critic_fatal = any(a.get("severity") == "fatal" for a in critic_attacks)
-        # 简化评分：有冲突扣分，有critic攻击扣分
-        score = 80.0
-        if has_violation:
-            score -= 40
-        if conflicts.get("conflicts"):
-            score -= len(conflicts["conflicts"]) * 5
-        if critic_attacks:
-            score -= len(critic_attacks) * 10
-        score = max(0, score)
+
+        # v6.4: 固定rubric评分（替代拍脑袋扣分）
+        # 4个维度，每维度25分，总分100
+        # 维度1: 安全性（无否决=25, 有否决=0）
+        safety_score = 0 if has_violation else 25
+        # 维度2: 一致性（无冲突=25, 每个冲突-5, 最低0）
+        conflict_count = len(conflicts.get("conflicts", []))
+        consistency_score = max(0, 25 - conflict_count * 5)
+        # 维度3: 抗攻击性（无critic攻击=25, 每个fatal-15, major-8, minor-3）
+        critic_score = 25
+        for a in critic_attacks:
+            sev = a.get("severity", "minor")
+            critic_score -= {"fatal": 15, "major": 8, "minor": 3}.get(sev, 3)
+        critic_score = max(0, critic_score)
+        # 维度4: 完整性（有输出=25, 无输出=0）
+        has_output = any(r.get("content") for r in state.get("persona_results", []))
+        completeness_score = 25 if has_output else 0
+
+        score = safety_score + consistency_score + critic_score + completeness_score
 
         verdict = determine_verdict(score, has_violation, has_critic_fatal)
         passed = verdict == Verdict.ACCEPT

@@ -184,6 +184,22 @@ def run_all_tests():
         print(f"❌ v6.0测试出错：{e}")
     print()
 
+    # 12. 模块接入检查（v6.4，防死代码）
+    print(">>> 运行模块接入检查（防执行驱动遗留死代码）...")
+    try:
+        from tests.test_module_usage import check_module_usage
+        issues = check_module_usage()
+        # subproject是插件化预留，不算死代码
+        real_issues = [i for i in issues if "subproject" not in i]
+        results["module_check"] = {
+            "issues_found": len(real_issues),
+            "status": "PASS" if not real_issues else "FAIL",
+        }
+    except Exception as e:
+        results["module_check"] = {"status": "ERROR", "error": str(e)}
+        print(f"❌ 模块检查出错：{e}")
+    print()
+
     # 汇总
     duration = time.time() - start_time
     print("=" * 70)

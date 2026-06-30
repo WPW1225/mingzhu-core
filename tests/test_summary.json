@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-06-30 15:44:00",
-  "duration": 9.864545345306396,
+  "timestamp": "2026-06-30 15:48:19",
+  "duration": 9.68865180015564,
   "results": {
     "red_lines": {
       "passed": 16,
@@ -52,6 +52,10 @@
       "status": "PASS"
     },
     "v6_features": {
+      "status": "PASS"
+    },
+    "module_check": {
+      "issues_found": 0,
       "status": "PASS"
     }
   },
