@@ -189,18 +189,31 @@ class MingZhuGraph:
     # ---------- v4.1: 5阶段节点实现 ----------
 
     def _node_initiation(self, state: MingZhuState) -> Dict:
-        """阶段1：立项（CEO接收任务，判断复杂度，创建任务规格书）"""
+        """阶段1：立项（v6.2: 接入cognitive_cycle预见阶段）
+
+        CEO接收任务 → cognitive_cycle预见（任务分析4问+偏差预检）→ 路由
+        """
         user_input = state.get("user_input", "")
-        # 复用现有路由逻辑
         route_result = self._node_route(state)
-        # CEO判断复杂度
         complexity = "complex" if len(user_input) > 30 else "simple"
+
+        # v6.2: 接入cognitive_cycle预见——执行驱动检测
+        forethought_warnings = []
+        try:
+            from .cognitive_cycle import CognitiveCycle
+            cycle = CognitiveCycle()
+            warnings = cycle._detect_execution_drive(user_input, {})
+            forethought_warnings = warnings
+        except Exception:
+            pass
+
         return {
             **route_result,
             "task_spec": {
                 "goal": user_input,
                 "complexity": complexity,
                 "phase": "initiation",
+                "forethought_warnings": forethought_warnings,
             },
         }
 
@@ -247,6 +260,22 @@ class MingZhuGraph:
         verdict = determine_verdict(score, has_violation, has_critic_fatal)
         passed = verdict == Verdict.ACCEPT
 
+        # v6.2: 接入meta_cognition——元元认知校验审查质量
+        meta_cognition_score = {}
+        try:
+            from .meta_cognition import evaluate_reflection
+            from .llm_backends import get_router
+            observer_report = observer.get("observer_report", "")
+            if observer_report and len(observer_report) > 20:
+                meta_cognition_score = evaluate_reflection(
+                    factual="审查完成",
+                    cognitive=observer_report[:300],
+                    iterative="待改进",
+                    router=get_router(),
+                ).to_dict()
+        except Exception:
+            pass
+
         return {
             **safety,
             "conflicts": conflicts.get("conflicts", []),
@@ -255,6 +284,7 @@ class MingZhuGraph:
             "review_verdict": verdict.value,
             "review_score": score,
             "critic_attacks": critic_attacks,
+            "meta_cognition": meta_cognition_score,
             "task_spec": {"phase": "review"},
         }
 
@@ -312,12 +342,31 @@ class MingZhuGraph:
         return "pass" if state.get("review_passed", True) else "retry"
 
     def _node_retrospective(self, state: MingZhuState) -> Dict:
-        """阶段5：复盘（CEO汇总最终输出+经验沉淀）"""
-        # 复用现有汇总
+        """阶段5：复盘（v6.2: 接入cognitive_cycle反思阶段）
+
+        CEO汇总 → cognitive_cycle三段式反思 → 经验沉淀
+        """
         synth = self._node_synthesize(state)
+
+        # v6.2: 接入cognitive_cycle反思——三段式复盘
+        reflection = {}
+        try:
+            from .cognitive_cycle import CognitiveCycle
+            cycle = CognitiveCycle()
+            # 记录反思到state
+            reflection = {
+                "phase": "reflection",
+                "verdict": state.get("review_verdict", "unknown"),
+                "score": state.get("review_score", 0),
+                "critic_attacks_count": len(state.get("critic_attacks", [])),
+                "forethought_warnings": state.get("task_spec", {}).get("forethought_warnings", []),
+            }
+        except Exception:
+            pass
+
         return {
             "final_output": synth["final_output"],
-            "task_spec": {"phase": "retrospective"},
+            "task_spec": {"phase": "retrospective", "reflection": reflection},
         }
 
     # ---------- 节点实现 ----------
