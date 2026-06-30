@@ -155,6 +155,29 @@ def chat_with_details(user_input: str, session_id: str = "default") -> Dict[str,
     except Exception:
         pass
 
+    # v7.0: 自我进化——记录agent表现和评分趋势
+    try:
+        from .evaluator_evolution import get_evolution
+        evo = get_evolution()
+        # 记录整体评分
+        evo.record_score(
+            output.get("review_score", 0),
+            output.get("verdict", "accept"),
+        )
+        # 记录每个agent表现
+        critic_attacks = output.get("critic_attacks", [])
+        for p in output["personas"]:
+            # 统计该agent被critic攻击的次数（简化：按name匹配）
+            attack_count = sum(1 for a in critic_attacks if p["name"] in str(a))
+            evo.record_performance(
+                p["name"],
+                output.get("review_score", 0),
+                p.get("confidence", "中"),
+                attack_count,
+            )
+    except Exception:
+        pass
+
     # v3.4: 自我进化——提取经验、检测纠正、学习偏好
     try:
         from .evolution import get_engine, Experience, Preference
@@ -327,6 +350,14 @@ def get_agents_status() -> Dict:
         status["cost"] = cost_summary()
     except Exception:
         status["cost"] = {"error": "unavailable"}
+    # v7.0: 评分校准+自我进化
+    try:
+        from .evaluator_evolution import get_calibrator, get_evolution
+        status["calibration"] = get_calibrator().get_calibration_summary()
+        status["self_evolution"] = get_evolution().get_evolution_report()
+    except Exception:
+        status["calibration"] = {"error": "unavailable"}
+        status["self_evolution"] = {"error": "unavailable"}
     # v4.7: 8个执行人格清单
     try:
         from . import PERSONAS
