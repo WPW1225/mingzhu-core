@@ -171,6 +171,19 @@ def run_all_tests():
         print(f"❌ DeepEval测试出错：{e}")
     print()
 
+    # 11. v6.0新功能测试
+    print(">>> 运行 v6.0 新功能测试（CognitiveState/Verdict/Critic）...")
+    try:
+        from tests.test_v6 import run_v6_tests
+        ok = run_v6_tests()
+        results["v6_features"] = {
+            "status": "PASS" if ok else "FAIL",
+        }
+    except Exception as e:
+        results["v6_features"] = {"status": "ERROR", "error": str(e)}
+        print(f"❌ v6.0测试出错：{e}")
+    print()
+
     # 汇总
     duration = time.time() - start_time
     print("=" * 70)

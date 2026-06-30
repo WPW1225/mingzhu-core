@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-06-29 06:39:27",
-  "duration": 6.554840803146362,
+  "timestamp": "2026-06-30 15:17:30",
+  "duration": 7.334076881408691,
   "results": {
     "red_lines": {
       "passed": 16,
@@ -49,6 +49,9 @@
     },
     "deepeval": {
       "issues_found": 0,
+      "status": "PASS"
+    },
+    "v6_features": {
       "status": "PASS"
     }
   },

@@ -5986,5 +5986,41 @@
     "cost_yuan": 0.02275,
     "latency_ms": 2751.8,
     "ok": true
+  },
+  {
+    "timestamp": "2026-06-30 15:16:55",
+    "backend": "zhipu",
+    "model": "glm-4-plus",
+    "scene": "analysis",
+    "input_tokens": 171,
+    "output_tokens": 60,
+    "total_tokens": 231,
+    "cost_yuan": 0.01155,
+    "latency_ms": 1176.3,
+    "ok": true
+  },
+  {
+    "timestamp": "2026-06-30 15:17:25",
+    "backend": "zhipu",
+    "model": "glm-4-plus",
+    "scene": "judge",
+    "input_tokens": 330,
+    "output_tokens": 125,
+    "total_tokens": 455,
+    "cost_yuan": 0.02275,
+    "latency_ms": 2221.6,
+    "ok": true
+  },
+  {
+    "timestamp": "2026-06-30 15:17:30",
+    "backend": "zhipu",
+    "model": "glm-4-plus",
+    "scene": "analysis",
+    "input_tokens": 171,
+    "output_tokens": 64,
+    "total_tokens": 235,
+    "cost_yuan": 0.01175,
+    "latency_ms": 1280.2,
+    "ok": true
   }
 ]

@@ -76,10 +76,16 @@ def chat_with_details(user_input: str, session_id: str = "default") -> Dict[str,
     graph = _get_graph()
     start = _time.time()
 
+    # v6.1: 用CognitiveState追踪全流程
+    from .cognitive_state import CognitiveState
+    cog_state = CognitiveState(user_input=user_input)
+    cog_state.add_trace("api", "chat_start", f"input_length={len(user_input)}")
+
     # v4.8: 双轨制真正接入——根据策略选Pipeline或ReAct
     strategy_type = select_strategy(user_input)
+    cog_state.add_trace("planning", "strategy_selected", strategy_type.value)
+
     if strategy_type == ExecutionStrategyType.REACT:
-        # ReAct策略：LLM自主调工具循环
         react = ReactStrategy(graph.router)
         react_result = react.execute(user_input, "", graph.router)
         result = {
@@ -117,6 +123,11 @@ def chat_with_details(user_input: str, session_id: str = "default") -> Dict[str,
         "models": list(set(p.get("model", "") for p in personas if p.get("model"))),
         "session_id": session_id,
         "latency_ms": round(latency, 1),
+        # v6.1: verdict裁决+Critic攻击+认知追踪
+        "verdict": result.get("review_verdict", "accept"),
+        "review_score": result.get("review_score", 0),
+        "critic_attacks": result.get("critic_attacks", []),
+        "cognitive_trace": cog_state.trace,
     }
 
     # v3.2: 持久化到长期记忆
