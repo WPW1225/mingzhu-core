@@ -348,8 +348,39 @@ class MingZhuGraph:
         return attacks
 
     def _after_review(self, state: MingZhuState) -> str:
-        """审查后条件路由：通过→复盘，否决→退回执行"""
-        return "pass" if state.get("review_passed", True) else "retry"
+        """审查后条件路由：v7.1 Gödel自修复闭环
+
+        verdict=accept → pass（复盘）
+        verdict=revise → retry（Gödel修复后重试）
+        verdict=reject → pass（拒绝但继续复盘标注）
+        """
+        verdict = state.get("review_verdict", "accept")
+
+        if verdict == "revise":
+            # v7.1: Gödel闭环——分析失败+生成修复策略
+            try:
+                from .self_evolution import get_evolution_engine
+                engine = get_evolution_engine()
+                analysis = engine.analyze_failure(
+                    state.get("critic_attacks", []),
+                    verdict,
+                    state.get("review_score", 0),
+                )
+                if analysis.get("needs_fix"):
+                    # 把修复策略存入state，重试时注入prompt
+                    fix_strategies = analysis.get("fix_strategy", {}).get("strategies", [])
+                    if fix_strategies:
+                        fix_additions = "\n".join(
+                            s.get("prompt_addition", "") for s in fix_strategies
+                        )
+                        existing_ctx = state.get("context", "")
+                        state["context"] = (existing_ctx + "\n\n【Gödel修复指令】" + fix_additions).strip()
+                        logger.info(f"Gödel修复: 注入{len(fix_strategies)}条修复策略")
+            except Exception as e:
+                logger.debug(f"Gödel修复失败: {e}")
+            return "retry"
+
+        return "pass"
 
     def _node_retrospective(self, state: MingZhuState) -> Dict:
         """阶段5：复盘（v6.2: 接入cognitive_cycle反思阶段）
