@@ -664,6 +664,16 @@ async function send() {
             if (event.content) metaHtml += `<div class="msg-observer">👁 坎观：${event.content.substring(0,300)}</div>`;
           } else if (event.type === 'done') {
             if (event.latency_ms) metaHtml = `<div class="msg-meta">${event.latency_ms}ms${event.models?' · '+event.models.join(','):''}</div>` + metaHtml;
+            // v6.3: verdict裁决显示
+            if (event.verdict) {
+              const vColor = {accept:'#22c55e', revise:'#f59e0b', reject:'#ef4444'}[event.verdict] || '#71717a';
+              metaHtml += `<div class="self-score" style="border-left-color:${vColor};">⚖️ 裁决: ${event.verdict} · 评分: ${event.review_score||0}</div>`;
+            }
+            // v6.3: critic攻击显示
+            if (event.critic_attacks && event.critic_attacks.length > 0) {
+              let criticHtml = event.critic_attacks.map(a => `  ⚔️ [${a.severity||'?'}] ${a.type||'?'}: ${(a.description||'').substring(0,80)}`).join('<br>');
+              metaHtml += `<div class="msg-observer" style="border-left-color:#ef4444;">⚔️ Critic攻击:<br>${criticHtml}</div>`;
+            }
             // v3.6: 自评显示
             if (event.self_score && event.self_score.overall) {
               const s = event.self_score;

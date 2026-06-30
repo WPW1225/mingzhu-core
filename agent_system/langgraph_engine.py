@@ -599,12 +599,20 @@ class MingZhuGraph:
 - 表格对比类问题，确保每个维度信息完整不被截断"""
 
         scene = Scene.SAFETY if pid == "gen_shou" else Scene.ANALYSIS
-        # v4.4: Prompt注入防御——user_input始终在user角色，不拼入system_prompt
-        # system_prompt是明烛控制的固定模板，user_input通过user消息传递
         full_prompt = user_input if not context else f"{context}\n\n当前问题：{user_input}"
-        # v4.0: 增加 max_tokens + 要求最终结论（修复多步推理不完整问题）
+
+        # v6.3: ToolAdapter接入——支持FC的模型透传tools参数
+        tools_param = None
+        try:
+            from .tool_adapter import get_tool_adapter
+            adapter = get_tool_adapter(self.router)
+            if adapter.supports_function_calling(self.router.zhipu.default_model):
+                tools_param = adapter.get_tools_for_model(self.router.zhipu.default_model)
+        except Exception:
+            pass
+
         resp = self.router.generate(full_prompt, system_prompt=system_prompt,
-                                    scene=scene, max_tokens=2000)
+                                    scene=scene, max_tokens=2000, tools=tools_param)
 
         content = resp.content if resp.ok else f"（{persona_name} 调用失败：{resp.error}）"
         # v3.8: 精确否决检测——只有【否决:xxx】格式才算真否决

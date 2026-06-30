@@ -631,7 +631,11 @@ def chat_stream(user_input: str, session_id: str = "default",
         pass
 
     yield {"type": "done", "latency_ms": round(latency, 1), "models": models,
-           "self_score": self_score}
+           "self_score": self_score,
+           # v6.3: verdict+critic透传到前端
+           "verdict": full_result.get("review_verdict", "accept"),
+           "review_score": full_result.get("review_score", 0),
+           "critic_attacks": full_result.get("critic_attacks", [])}
 
 
 if __name__ == "__main__":
