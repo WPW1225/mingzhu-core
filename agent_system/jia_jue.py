@@ -161,3 +161,9 @@ def get_jia_jue() -> JiaJue:
     if _officer is None:
         _officer = JiaJue()
     return _officer
+
+
+def reset_jia_jue() -> None:
+    """重置单例（供测试使用，保证测试隔离）"""
+    global _officer
+    _officer = None

@@ -279,6 +279,12 @@ def get_evolution_engine() -> SelfEvolutionEngine:
     return _engine
 
 
+def reset_evolution_engine() -> None:
+    """重置单例（供测试使用，保证测试隔离）"""
+    global _engine
+    _engine = None
+
+
 if __name__ == "__main__":
     engine = get_evolution_engine()
     print("=== 进化报告 ===")

@@ -82,7 +82,23 @@ class MingZhuState(TypedDict, total=False):
 # ============================================================
 
 class MingZhuGraph:
-    """明烛 LangGraph 状态图引擎"""
+    """明烛 LangGraph 状态图引擎
+
+    文件结构（按职责分节，便于维护）：
+      §1  初始化与图构建         __init__, _build_graph
+      §2  立项/规划/记忆/学习     _after_planning, _node_memory_recall,
+                                 _node_knowledge_learn, _node_initiation,
+                                 _node_planning
+      §3  执行阶段（人格调度）    _node_execute_personas, _execute_group,
+                                 _execute_single_persona, _iterative_refine,
+                                 _execute_discuss, _maybe_call_tools,
+                                 _node_route
+      §4  审查与安全              _node_review, _critic_attack, _after_review,
+                                 _node_safety_check, _node_conflict_check
+      §5  综合与观察              _node_synthesize, _node_observe
+      §6  复盘与对外接口          _node_retrospective, _after_safety_check,
+                                 invoke, get_history
+    """
 
     def __init__(self, llm_router=None):
         self.mz = MingZhu(llm_client=None)  # 复用明烛的路由和人格加载逻辑
@@ -132,6 +148,10 @@ class MingZhuGraph:
         workflow.add_edge("retrospective", END)
 
         return workflow.compile(checkpointer=self.checkpointer)
+
+    # ============================================================
+    # §2 立项 / 规划 / 记忆 / 学习
+    # ============================================================
 
     # ---------- v4.3: 戊藏(记忆官)+甲觉(学习官)节点 ----------
 
@@ -227,6 +247,10 @@ class MingZhuGraph:
             "schedule": schedule.to_dict(),
             "task_spec": {"phase": "planning", "plan": schedule.reason},
         }
+
+    # ============================================================
+    # §4 审查与安全
+    # ============================================================
 
     def _node_review(self, state: MingZhuState) -> Dict:
         """阶段4：审查（v6.0: Verdict裁决系统+Critic对抗）
@@ -382,6 +406,10 @@ class MingZhuGraph:
 
         return "pass"
 
+    # ============================================================
+    # §6 复盘与对外接口
+    # ============================================================
+
     def _node_retrospective(self, state: MingZhuState) -> Dict:
         """阶段5：复盘（v6.2: 接入cognitive_cycle反思阶段）
 
@@ -411,6 +439,10 @@ class MingZhuGraph:
         }
 
     # ---------- 节点实现 ----------
+
+    # ============================================================
+    # §3 执行阶段（人格调度）
+    # ============================================================
 
     def _node_route(self, state: MingZhuState) -> Dict:
         """路由节点：决定调用哪些子人格（P1-5 语义路由增强）"""
@@ -661,11 +693,20 @@ class MingZhuGraph:
         veto_match = _re.search(r'【否决[:：]\s*([^】]+)】', content)
         vetoed = bool(veto_match) and pid == "gen_shou"
         veto_reason = veto_match.group(1) if veto_match else ""
-        confidence = "中"
-        if "置信度：高" in content or "置信度: 高" in content:
-            confidence = "高"
-        elif "置信度：低" in content or "置信度: 低" in content:
-            confidence = "低"
+        # 置信度检测：用正则匹配多种格式，避免依赖单一字符串
+        # 支持：置信度：高 / 置信度: 高 / 置信度=高 / confidence: high 等
+        confidence = "中"  # 默认
+        conf_match = _re.search(
+            r'(?:置信度|confidence)\s*[:：=]\s*(高|低|中|high|low|medium)',
+            content, _re.IGNORECASE)
+        if conf_match:
+            val = conf_match.group(1).lower()
+            if val in ("高", "high"):
+                confidence = "高"
+            elif val in ("低", "low"):
+                confidence = "低"
+            else:
+                confidence = "中"
 
         return {
             "persona": pid, "name": persona_name, "icon": persona_icon,
@@ -677,14 +718,24 @@ class MingZhuGraph:
     def _iterative_refine(self, results: List[Dict], user_input: str,
                           context: str, max_iterations: int) -> List[Dict]:
         """迭代修正：坎观审查→相关人格修正，循环直到通过或达到上限"""
+        import re as _re_refine
         for iteration in range(max_iterations - 1):
             # 坎观审查当前结果
             observer_result = self._node_observe({"persona_results": results, "final_output": ""})
             observer_report = observer_result.get("observer_report", "")
 
-            # 如果坎观认为没问题了，停止迭代
-            if "无重大问题" in observer_report or "质量良好" in observer_report:
-                break
+            # v3.10: 结构化判定——解析 VERDICT 标记，替代脆弱的字符串子串匹配
+            # 优先匹配 VERDICT: PASS/REFINE；若 LLM 未输出标记则降级为关键词检测
+            verdict_match = _re_refine.search(
+                r'VERDICT\s*[:：]\s*(PASS|REFINE)', observer_report, _re_refine.IGNORECASE)
+            if verdict_match:
+                if verdict_match.group(1).upper() == "PASS":
+                    break
+                # REFINE 则继续修正
+            else:
+                # 降级：LLM 未输出结构化标记时，用关键词判断（向后兼容）
+                if "无重大问题" in observer_report or "质量良好" in observer_report:
+                    break
 
             # 找到需要修正的人格（坎观指出的）
             # 简化：让相关人格基于坎观反馈重新分析
@@ -830,6 +881,10 @@ class MingZhuGraph:
         conflicts = self.mz._detect_conflicts(agent_results)
         return {"conflicts": conflicts}
 
+    # ============================================================
+    # §5 综合与观察
+    # ============================================================
+
     def _node_synthesize(self, state: MingZhuState) -> Dict:
         """汇总节点：离明封装最终输出"""
         results = state.get("persona_results", [])
@@ -916,7 +971,12 @@ class MingZhuGraph:
 4. 一致性：各人格输出是否自洽
 5. 改进建议：下次怎么做得更好
 
-输出格式：2-4句话的观察报告，直接指出问题，不客套。"""
+输出格式要求（严格遵守）：
+先输出 2-4 句话的观察报告，然后在最后一行输出结构化判定：
+VERDICT: PASS   （无重大问题，质量良好，可停止迭代）
+VERDICT: REFINE  （存在重大问题，需要修正）
+
+判定标准：只有当存在明显的事实错误、严重遗漏、或逻辑矛盾时才给 REFINE；轻微措辞问题给 PASS。"""
 
             resp = self.router.generate(
                 prompt=f"""用户问题：{user_input}
@@ -929,7 +989,7 @@ class MingZhuGraph:
 
 冲突：{conflicts if conflicts else '无'}
 
-请给出观察报告。""",
+请给出观察报告，并在最后一行输出 VERDICT: PASS 或 VERDICT: REFINE。""",
                 system_prompt=system_prompt, scene=Scene.ANALYSIS, max_tokens=300,
             )
             if resp.ok:

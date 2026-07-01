@@ -202,6 +202,12 @@ def get_engine() -> EvolutionEngine:
     return _engine
 
 
+def reset_engine() -> None:
+    """重置单例（供测试使用，保证测试隔离）"""
+    global _engine
+    _engine = None
+
+
 if __name__ == "__main__":
     eng = get_engine()
     print("=== 进化状态 ===")

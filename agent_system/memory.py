@@ -14,11 +14,13 @@
 import os
 import json
 import time
+import logging
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field, asdict
 
-logger = logging.getLogger(__name__) if (logger := globals().get("logger")) else __import__("logging").getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 MEMORY_DIR = Path(__file__).parent.parent / "memory_store"
 MAX_TURNS_PER_SESSION = 50  # 每会话最多保留轮数
@@ -45,6 +47,17 @@ class LongTermMemory:
     def __init__(self, memory_dir: Path = None):
         self.memory_dir = memory_dir or MEMORY_DIR
         self.memory_dir.mkdir(parents=True, exist_ok=True)
+        # 按 thread_id 加锁：防止同一会话并发 save_turn 时的读-改-写竞态。
+        # 不同会话用不同锁，互不阻塞。
+        self._locks: Dict[str, threading.Lock] = {}
+        self._locks_guard = threading.Lock()
+
+    def _lock_for(self, thread_id: str) -> threading.Lock:
+        """获取（或创建）某会话专属的锁"""
+        with self._locks_guard:
+            if thread_id not in self._locks:
+                self._locks[thread_id] = threading.Lock()
+            return self._locks[thread_id]
 
     def _session_file(self, thread_id: str) -> Path:
         # 防止路径注入：只允许字母数字下划线减号
@@ -54,18 +67,20 @@ class LongTermMemory:
         return self.memory_dir / f"{safe_id}.json"
 
     def save_turn(self, thread_id: str, entry: MemoryEntry) -> None:
-        """保存一轮对话到会话记忆文件"""
-        path = self._session_file(thread_id)
-        history = self.load_session(thread_id)
-        history.append(entry.to_dict())
-        # 限制最大轮数，保留最近的
-        if len(history) > MAX_TURNS_PER_SESSION:
-            history = history[-MAX_TURNS_PER_SESSION:]
-        try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(history, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.warning(f"保存记忆失败: {e}")
+        """保存一轮对话到会话记忆文件（线程安全）"""
+        # 同一会话串行化，避免并发覆写丢失数据
+        with self._lock_for(thread_id):
+            path = self._session_file(thread_id)
+            history = self.load_session(thread_id)
+            history.append(entry.to_dict())
+            # 限制最大轮数，保留最近的
+            if len(history) > MAX_TURNS_PER_SESSION:
+                history = history[-MAX_TURNS_PER_SESSION:]
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(history, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                logger.warning(f"保存记忆失败: {e}")
 
     def load_session(self, thread_id: str) -> List[Dict]:
         """加载某会话的全部历史"""
@@ -127,6 +142,12 @@ def get_memory() -> LongTermMemory:
     if _memory is None:
         _memory = LongTermMemory()
     return _memory
+
+
+def reset_memory() -> None:
+    """重置单例（供测试使用，保证测试隔离）"""
+    global _memory
+    _memory = None
 
 
 if __name__ == "__main__":

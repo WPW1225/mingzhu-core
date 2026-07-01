@@ -95,6 +95,12 @@ def get_registry() -> SubProjectRegistry:
     return _registry
 
 
+def reset_registry() -> None:
+    """重置单例（供测试使用，保证测试隔离）"""
+    global _registry
+    _registry = None
+
+
 if __name__ == "__main__":
     # 示例：如何定义一个子项目
     class CodeAuditProject(BaseSubProject):

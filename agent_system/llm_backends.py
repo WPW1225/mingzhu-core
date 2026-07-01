@@ -333,6 +333,12 @@ def get_router() -> LLMRouter:
     return _router
 
 
+def reset_router() -> None:
+    """重置单例（供测试使用，保证测试隔离）"""
+    global _router
+    _router = None
+
+
 if __name__ == "__main__":
     router = get_router()
     print("=== 后端状态 ===")

@@ -14,6 +14,7 @@ import os
 import json
 import time
 import logging
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field, asdict
@@ -68,6 +69,9 @@ class CostMonitor:
 
     def __init__(self, log_file: Path = None):
         self.log_file = log_file or COST_LOG_FILE
+        # 文件级锁：防止 ThreadPoolExecutor 并发调用 record() 时
+        # 读-改-写竞态导致日志丢失或文件损坏。
+        self._lock = threading.Lock()
 
     def record(self, backend: str, model: str, scene: str,
                usage: Dict, latency_ms: float, ok: bool = True) -> CostEntry:
@@ -86,20 +90,22 @@ class CostMonitor:
         return entry
 
     def _append_log(self, entry: CostEntry):
-        """追加到日志文件"""
-        try:
-            logs = []
-            if self.log_file.exists():
-                with open(self.log_file, "r", encoding="utf-8") as f:
-                    logs = json.load(f)
-            logs.append(entry.to_dict())
-            # 限制日志大小，保留最近 1000 条
-            if len(logs) > 1000:
-                logs = logs[-1000:]
-            with open(self.log_file, "w", encoding="utf-8") as f:
-                json.dump(logs, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.warning(f"成本日志写入失败: {e}")
+        """追加到日志文件（线程安全）"""
+        # 加锁保护读-改-写：并发线程会串行化，避免互相覆盖。
+        with self._lock:
+            try:
+                logs = []
+                if self.log_file.exists():
+                    with open(self.log_file, "r", encoding="utf-8") as f:
+                        logs = json.load(f)
+                logs.append(entry.to_dict())
+                # 限制日志大小，保留最近 1000 条
+                if len(logs) > 1000:
+                    logs = logs[-1000:]
+                with open(self.log_file, "w", encoding="utf-8") as f:
+                    json.dump(logs, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                logger.warning(f"成本日志写入失败: {e}")
 
     def summary(self) -> Dict:
         """获取成本摘要"""
@@ -161,6 +167,12 @@ def get_monitor() -> CostMonitor:
     if _monitor is None:
         _monitor = CostMonitor()
     return _monitor
+
+
+def reset_monitor() -> None:
+    """重置单例（供测试使用，保证测试隔离）"""
+    global _monitor
+    _monitor = None
 
 
 if __name__ == "__main__":

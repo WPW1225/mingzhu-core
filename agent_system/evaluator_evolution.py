@@ -287,11 +287,23 @@ def get_calibrator() -> EvaluatorCalibrator:
         _calibrator = EvaluatorCalibrator()
     return _calibrator
 
+
+def reset_calibrator() -> None:
+    """重置单例（供测试使用，保证测试隔离）"""
+    global _calibrator
+    _calibrator = None
+
 def get_evolution() -> SelfEvolution:
     global _evolution
     if _evolution is None:
         _evolution = SelfEvolution()
     return _evolution
+
+
+def reset_evolution() -> None:
+    """重置单例（供测试使用，保证测试隔离）"""
+    global _evolution
+    _evolution = None
 
 
 if __name__ == "__main__":

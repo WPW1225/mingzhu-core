@@ -97,3 +97,9 @@ def get_wu_cang() -> WuCang:
     if _officer is None:
         _officer = WuCang()
     return _officer
+
+
+def reset_wu_cang() -> None:
+    """重置单例（供测试使用，保证测试隔离）"""
+    global _officer
+    _officer = None

@@ -24,6 +24,7 @@ class ConfigLoader:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._loaded = False
+            cls._instance._prompt_cache = {}  # 提示词缓存
         return cls._instance
 
     def _load(self):
@@ -98,8 +99,12 @@ class ConfigLoader:
         return self._configs["personas"].get(persona_id)
 
     def get_system_prompt(self) -> str:
-        """生成系统提示词（从结构化配置拼接）"""
+        """生成系统提示词（从结构化配置拼接，带缓存）"""
         self._load()
+        # 缓存：配置在运行时不变，避免每次 chat 重复拼接
+        if "system" in self._prompt_cache:
+            return self._prompt_cache["system"]
+
         soul = self._configs["soul"]
 
         parts = []
@@ -143,10 +148,17 @@ class ConfigLoader:
             personas_list = routing.get("priority_order", {}).get(level, [])
             parts.append(f"  - {level}：{', '.join(personas_list)}")
 
-        return "\n".join(parts)
+        prompt = "\n".join(parts)
+        self._prompt_cache["system"] = prompt
+        return prompt
 
     def get_persona_prompt(self, persona_id: str) -> Optional[str]:
-        """获取指定人格的提示词"""
+        """获取指定人格的提示词（带缓存）"""
+        # 缓存：同一人格提示词在运行时不变
+        cache_key = f"persona:{persona_id}"
+        if cache_key in self._prompt_cache:
+            return self._prompt_cache[cache_key]
+
         persona = self.get_persona(persona_id)
         if not persona:
             return None
@@ -192,7 +204,9 @@ class ConfigLoader:
         for phrase in style.get("key_phrases", []):
             parts.append(f"  - {phrase}")
 
-        return "\n".join(parts)
+        prompt = "\n".join(parts)
+        self._prompt_cache[cache_key] = prompt
+        return prompt
 
     def get_red_line_cases(self) -> List[Dict]:
         """获取所有红线测试用例"""

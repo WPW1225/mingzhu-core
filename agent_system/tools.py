@@ -19,11 +19,68 @@ import json
 import ast
 import operator as op
 import subprocess
+import tempfile
 import logging
 from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
+
+# ============================================================
+# 代码执行沙箱：白名单 import 检查
+# ============================================================
+# 允许在沙箱中 import 的模块白名单（纯计算/数据处理，无 IO/网络/系统调用）
+SANDBOX_ALLOWED_MODULES = frozenset({
+    "math", "statistics", "json", "re", "datetime", "collections",
+    "itertools", "functools", "string", "decimal", "fractions",
+    "bisect", "heapq", "copy", "hashlib", "base64", "uuid",
+    "textwrap", "unicodedata", "difflib", "pprint",
+})
+
+# 危险属性/调用黑名单（双保险，即使绕过 import 检查也拦截）
+SANDBOX_FORBIDDEN_NAMES = frozenset({
+    "eval", "exec", "compile", "__import__", "globals", "locals",
+    "vars", "dir", "getattr", "setattr", "delattr", "open",
+    "input", "breakpoint", "exit", "quit",
+    "__builtins__", "__subclasses__", "__bases__", "__mro__",
+    "__class__", "__globals__", "__code__",
+})
+
+
+def _validate_sandbox_code(code: str) -> Optional[str]:
+    """AST 白名单校验：返回错误信息，None 表示通过。
+
+    检查项：
+    1. 所有 import 的模块必须在白名单内
+    2. 禁止访问危险内置名（eval/exec/open/__import__ 等）
+    3. 禁止属性链逃逸（如 __class__.__subclasses__）
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        return f"语法错误: {e}"
+
+    for node in ast.walk(tree):
+        # 检查 import 语句
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                top = alias.name.split(".")[0]
+                if top not in SANDBOX_ALLOWED_MODULES:
+                    return f"禁止导入模块: {alias.name}（仅允许: {', '.join(sorted(SANDBOX_ALLOWED_MODULES))}）"
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                top = node.module.split(".")[0]
+                if top not in SANDBOX_ALLOWED_MODULES:
+                    return f"禁止从模块导入: {node.module}（仅允许: {', '.join(sorted(SANDBOX_ALLOWED_MODULES))}）"
+        # 检查危险名称调用/引用
+        elif isinstance(node, ast.Name):
+            if node.id in SANDBOX_FORBIDDEN_NAMES:
+                return f"禁止使用: {node.id}"
+        # 检查属性访问逃逸（如 obj.__subclasses__）
+        elif isinstance(node, ast.Attribute):
+            if node.attr in SANDBOX_FORBIDDEN_NAMES or node.attr.startswith("__"):
+                return f"禁止访问属性: {node.attr}"
+    return None
 
 
 @dataclass
@@ -151,7 +208,7 @@ def _safe_eval_node(node):
 
 
 def tool_code_execute(code: str, language: str = "python") -> ToolResult:
-    """代码执行工具（沙箱执行，限制权限）"""
+    """代码执行工具（白名单 AST 校验 + 临时目录隔离 + 资源限制）"""
     import time as _time
     start = _time.time()
     try:
@@ -159,27 +216,34 @@ def tool_code_execute(code: str, language: str = "python") -> ToolResult:
             return ToolResult("code_execute", False,
                             error=f"暂不支持 {language}")
 
-        # 安全检查：禁止危险操作
-        dangerous_patterns = ["import os", "import sys", "import subprocess",
-                            "os.system", "os.popen", "eval(", "exec(",
-                            "open('/", "open(\"/", "__import__"]
-        for pat in dangerous_patterns:
-            if pat in code:
-                return ToolResult("code_execute", False,
-                                error=f"代码含禁止操作: {pat}")
+        # 第一道防线：AST 白名单校验（替代旧的黑名单子串匹配）
+        err = _validate_sandbox_code(code)
+        if err:
+            return ToolResult("code_execute", False, error=f"沙箱安全检查未通过: {err}")
 
-        # 写入临时文件执行
-        import tempfile
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py",
-                                         delete=False, dir="/tmp") as f:
-            f.write(code)
-            tmp_path = f.name
+        # 第二道防线：在隔离的临时目录中执行，限制资源
+        with tempfile.TemporaryDirectory(prefix="mingzhu_sandbox_") as workdir:
+            # 写入临时脚本
+            script_path = os.path.join(workdir, "_sandbox.py")
+            with open(script_path, "w", encoding="utf-8") as f:
+                f.write(code)
 
-        result = subprocess.run(
-            ["python3", tmp_path],
-            capture_output=True, text=True, timeout=10,
-        )
-        os.unlink(tmp_path)
+            # 构建受限的执行环境：
+            # - cwd 设为临时目录（隔离工作区）
+            # - 清空环境变量（防止泄露密钥，如 ZHIPU_API_KEY）
+            # - 超时 10s
+            result = subprocess.run(
+                ["python3", script_path],
+                capture_output=True, text=True, timeout=10,
+                cwd=workdir,
+                env={  # 仅保留最小必要环境变量
+                    "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+                    "HOME": workdir,
+                    "LANG": "C.UTF-8",
+                    "PYTHONPATH": "",
+                },
+            )
+
         latency = (_time.time() - start) * 1000
 
         if result.returncode == 0:
@@ -200,14 +264,16 @@ def tool_code_execute(code: str, language: str = "python") -> ToolResult:
 
 
 def tool_file_read(path: str) -> ToolResult:
-    """文件读取工具（限制在项目目录内）"""
+    """文件读取工具（限制在项目目录内，防符号链接绕过）"""
     import time as _time
     start = _time.time()
     try:
         # 安全：只允许读项目目录下的文件
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        abs_path = os.path.abspath(path)
-        if not abs_path.startswith(project_root):
+        # 用 realpath 解析符号链接，防止项目内符号链接指向外部文件
+        project_root = os.path.realpath(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        abs_path = os.path.realpath(os.path.abspath(path))
+        if not abs_path.startswith(project_root + os.sep) and abs_path != project_root:
             return ToolResult("file_read", False,
                             error="只能读取项目目录内的文件")
 
@@ -298,6 +364,12 @@ def get_registry() -> ToolRegistry:
     if _registry is None:
         _registry = ToolRegistry()
     return _registry
+
+
+def reset_registry() -> None:
+    """重置单例（供测试使用，保证测试隔离）"""
+    global _registry
+    _registry = None
 
 
 if __name__ == "__main__":
